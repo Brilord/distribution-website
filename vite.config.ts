@@ -1,8 +1,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { createWriteStream, mkdirSync, statSync } from 'node:fs';
+import { createWriteStream, mkdirSync, statSync, unlink } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+
+const maxUploadBytes = 500 * 1024 * 1024;
+const localHostnames = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']);
 
 function formatBytes(bytes: number) {
   if (bytes === 0) {
@@ -17,9 +21,40 @@ function formatBytes(bytes: number) {
 }
 
 function sendJson(response: ServerResponse, statusCode: number, body: unknown) {
+  if (response.headersSent || response.writableEnded) {
+    return;
+  }
+
   response.statusCode = statusCode;
   response.setHeader('content-type', 'application/json');
   response.end(JSON.stringify(body));
+}
+
+function getHostname(value: string | undefined) {
+  if (!value) {
+    return '';
+  }
+
+  try {
+    return new URL(value.includes('://') ? value : `http://${value}`).hostname;
+  } catch {
+    return value.split(':')[0] || '';
+  }
+}
+
+function isAllowedLocalRequest(request: IncomingMessage) {
+  const host = getHostname(request.headers.host);
+  const origin = request.headers.origin;
+
+  if (!localHostnames.has(host)) {
+    return false;
+  }
+
+  if (!origin) {
+    return true;
+  }
+
+  return localHostnames.has(getHostname(origin));
 }
 
 function uploadExeMiddleware(root: string) {
@@ -29,9 +64,31 @@ function uploadExeMiddleware(root: string) {
       return;
     }
 
+    if (!isAllowedLocalRequest(request)) {
+      sendJson(response, 403, { error: 'Installer uploads are only allowed from the local development host.' });
+      request.resume();
+      return;
+    }
+
+    const contentLength = Number(request.headers['content-length'] || 0);
+    if (contentLength > maxUploadBytes) {
+      sendJson(response, 413, { error: 'Installer is too large. Maximum upload size is 500 MB.' });
+      request.resume();
+      return;
+    }
+
     const encodedFileName = request.headers['x-file-name'];
     const fileNameHeader = Array.isArray(encodedFileName) ? encodedFileName[0] : encodedFileName;
-    const decodedFileName = decodeURIComponent(fileNameHeader || '');
+    let decodedFileName = '';
+
+    try {
+      decodedFileName = decodeURIComponent(fileNameHeader || '');
+    } catch {
+      sendJson(response, 400, { error: 'Invalid installer file name.' });
+      request.resume();
+      return;
+    }
+
     const fileName = basename(decodedFileName).replace(/[^a-zA-Z0-9._-]/g, '-');
 
     if (!fileName.toLowerCase().endsWith('.exe')) {
@@ -44,23 +101,59 @@ function uploadExeMiddleware(root: string) {
 
     const outputPath = join(downloadsDir, fileName);
     const writeStream = createWriteStream(outputPath);
+    const hash = createHash('sha256');
+    let receivedBytes = 0;
+    let settled = false;
+
+    function fail(statusCode: number, error: string) {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      writeStream.destroy();
+      unlink(outputPath, () => undefined);
+      sendJson(response, statusCode, { error });
+    }
+
+    request.on('data', (chunk: Buffer) => {
+      receivedBytes += chunk.length;
+
+      if (receivedBytes > maxUploadBytes) {
+        fail(413, 'Installer is too large. Maximum upload size is 500 MB.');
+        request.destroy();
+        return;
+      }
+
+      hash.update(chunk);
+    });
 
     request.pipe(writeStream);
 
     request.on('error', () => {
-      sendJson(response, 500, { error: 'Upload stream failed.' });
+      fail(500, 'Upload stream failed.');
+    });
+
+    request.on('aborted', () => {
+      fail(400, 'Upload was aborted.');
     });
 
     writeStream.on('error', () => {
-      sendJson(response, 500, { error: 'Could not save installer.' });
+      fail(500, 'Could not save installer.');
     });
 
     writeStream.on('finish', () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
       const sizeBytes = statSync(outputPath).size;
       sendJson(response, 200, {
         fileName,
         fileSize: formatBytes(sizeBytes),
         installerPath: `/downloads/${fileName}`,
+        checksum: hash.digest('hex'),
         sizeBytes,
       });
     });

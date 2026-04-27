@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ElementType, type FocusEvent, type ReactNode } from 'react';
 import {
+  AlertTriangle,
   ArrowDownToLine,
   BadgeCheck,
   Check,
@@ -11,6 +12,7 @@ import {
   HardDriveDownload,
   Loader2,
   LockKeyhole,
+  Menu,
   MonitorCog,
   RotateCcw,
   ScanSearch,
@@ -19,6 +21,7 @@ import {
   TerminalSquare,
   UploadCloud,
   Workflow,
+  X,
   Zap,
 } from 'lucide-react';
 
@@ -29,8 +32,11 @@ const product = {
   fileName: 'MyAppSetup.exe',
   windowsSupport: 'Windows 10 and 11',
   installerPath: '/downloads/MyAppSetup.exe',
-  checksum: 'SHA-256 checksum placeholder',
-  releaseDate: 'April 2026',
+  checksum: 'Upload or publish an installer to generate the SHA-256 checksum.',
+  releaseDate: 'April 28, 2026',
+  publisher: 'Replace with your code-signing publisher',
+  supportEmail: 'support@myapp.example',
+  screenshotPath: '/screenshots/main-preview.png',
 };
 
 const defaultCopy = {
@@ -55,6 +61,7 @@ type InstallerMeta = {
   fileName: string;
   fileSize: string;
   installerPath: string;
+  checksum: string;
   sizeBytes: number;
 };
 
@@ -150,6 +157,7 @@ function useInstallerMeta(canEdit: boolean) {
     fileName: product.fileName,
     fileSize: product.fileSize,
     installerPath: product.installerPath,
+    checksum: product.checksum,
     sizeBytes: 0,
   });
 
@@ -164,7 +172,14 @@ function useInstallerMeta(canEdit: boolean) {
     }
 
     try {
-      setInstaller(JSON.parse(saved));
+      setInstaller({
+        fileName: product.fileName,
+        fileSize: product.fileSize,
+        installerPath: product.installerPath,
+        checksum: product.checksum,
+        sizeBytes: 0,
+        ...JSON.parse(saved),
+      });
     } catch {
       window.localStorage.removeItem('myapp-installer-meta');
     }
@@ -182,6 +197,7 @@ function useInstallerMeta(canEdit: boolean) {
       fileName: product.fileName,
       fileSize: product.fileSize,
       installerPath: product.installerPath,
+      checksum: product.checksum,
       sizeBytes: 0,
     };
 
@@ -270,7 +286,7 @@ function EditorToolbar({
 
       const uploaded = (await response.json()) as InstallerMeta;
       updateInstaller(uploaded);
-      setMessage(`${uploaded.fileName} deployed locally. Size: ${uploaded.fileSize}.`);
+      setMessage(`${uploaded.fileName} deployed locally. Size: ${uploaded.fileSize}. SHA-256 generated.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Upload failed.');
     } finally {
@@ -366,7 +382,60 @@ function ButtonLink({
   );
 }
 
+function LocalPreflightWarning({ canEdit, installer }: { canEdit: boolean; installer: InstallerMeta }) {
+  const [status, setStatus] = useState<'checking' | 'available' | 'missing'>('checking');
+
+  useEffect(() => {
+    if (!canEdit) {
+      return;
+    }
+
+    let isCurrent = true;
+
+    setStatus('checking');
+    fetch(installer.installerPath, { method: 'HEAD', cache: 'no-store' })
+      .then((response) => {
+        if (isCurrent) {
+          setStatus(response.ok ? 'available' : 'missing');
+        }
+      })
+      .catch(() => {
+        if (isCurrent) {
+          setStatus('missing');
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [canEdit, installer.installerPath]);
+
+  if (!canEdit || status !== 'missing') {
+    return null;
+  }
+
+  return (
+    <div className="border-b border-amber-200 bg-amber-50">
+      <div className="container-page flex items-start gap-3 py-3 text-sm text-amber-900">
+        <AlertTriangle className="mt-0.5 shrink-0" size={18} />
+        <p>
+          Local preflight: the configured installer <span className="font-semibold">{installer.installerPath}</span> is
+          missing. Drop an .exe into the developer toolbar or place the installer in public/downloads before publishing.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function Header({ installer }: { installer: InstallerMeta }) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navLinks = [
+    ['Features', '#features'],
+    ['Preview', '#preview'],
+    ['Changelog', '#changelog'],
+    ['Security', '#security'],
+  ];
+
   return (
     <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/85 backdrop-blur-xl">
       <nav className="container-page flex h-16 items-center justify-between">
@@ -377,27 +446,47 @@ function Header({ installer }: { installer: InstallerMeta }) {
           {product.name}
         </a>
         <div className="hidden items-center gap-6 text-sm font-medium text-gray-600 md:flex">
-          <a className="transition hover:text-gray-950" href="#features">
-            Features
-          </a>
-          <a className="transition hover:text-gray-950" href="#preview">
-            Preview
-          </a>
-          <a className="transition hover:text-gray-950" href="#changelog">
-            Changelog
-          </a>
-          <a className="transition hover:text-gray-950" href="#security">
-            Security
-          </a>
+          {navLinks.map(([label, href]) => (
+            <a className="transition hover:text-gray-950" href={href} key={href}>
+              {label}
+            </a>
+          ))}
         </div>
-        <a
-          href={installer.installerPath}
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700"
-        >
-          <ArrowDownToLine size={17} />
-          Download
-        </a>
+        <div className="flex items-center gap-2">
+          <a
+            href={installer.installerPath}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:px-4"
+          >
+            <ArrowDownToLine size={17} />
+            <span className="hidden sm:inline">Download</span>
+          </a>
+          <button
+            type="button"
+            className="inline-grid size-10 place-items-center rounded-md border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-50 md:hidden"
+            onClick={() => setIsMenuOpen((value) => !value)}
+            aria-expanded={isMenuOpen}
+            aria-label="Toggle navigation"
+          >
+            {isMenuOpen ? <X size={19} /> : <Menu size={19} />}
+          </button>
+        </div>
       </nav>
+      {isMenuOpen ? (
+        <div className="border-t border-gray-200 bg-white md:hidden">
+          <div className="container-page grid gap-1 py-3 text-sm font-medium text-gray-700">
+            {navLinks.map(([label, href]) => (
+              <a
+                className="rounded-md px-2 py-3 transition hover:bg-gray-50 hover:text-gray-950"
+                href={href}
+                key={href}
+                onClick={() => setIsMenuOpen(false)}
+              >
+                {label}
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </header>
   );
 }
@@ -465,9 +554,36 @@ function Hero({
             ))}
           </dl>
         </div>
-        <DesktopMockup compact />
+        <ProductVisual compact />
       </div>
     </section>
+  );
+}
+
+function ProductVisual({ compact = false }: { compact?: boolean }) {
+  const [showScreenshot, setShowScreenshot] = useState(true);
+
+  if (!showScreenshot) {
+    return <DesktopMockup compact={compact} />;
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-300 bg-gray-950 p-2 shadow-soft">
+      <div className="flex h-9 items-center gap-2 border-b border-gray-800 px-3">
+        <span className="size-3 rounded-full bg-red-400" />
+        <span className="size-3 rounded-full bg-amber-400" />
+        <span className="size-3 rounded-full bg-emerald-400" />
+        <span className="ml-3 truncate text-xs text-gray-300">{product.name} Preview</span>
+      </div>
+      <div className={`overflow-hidden rounded-b-lg bg-gray-900 ${compact ? 'min-h-[340px]' : 'min-h-[430px]'}`}>
+        <img
+          src={product.screenshotPath}
+          alt={`${product.name} application screenshot`}
+          className={`${compact ? 'min-h-[340px]' : 'min-h-[430px]'} h-full w-full object-cover object-top`}
+          onError={() => setShowScreenshot(false)}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -570,7 +686,7 @@ function Preview({
               )}
             </div>
           </div>
-          <DesktopMockup />
+          <ProductVisual />
         </div>
       </div>
     </section>
@@ -686,6 +802,14 @@ function DownloadPanel({
               <dt className="text-gray-400">Released</dt>
               <dd className="font-medium">{product.releaseDate}</dd>
             </div>
+            <div className="flex justify-between gap-4 border-t border-white/10 pt-3">
+              <dt className="text-gray-400">Publisher</dt>
+              <dd className="text-right font-medium">{product.publisher}</dd>
+            </div>
+            <div className="border-t border-white/10 pt-3">
+              <dt className="text-gray-400">SHA-256</dt>
+              <dd className="mt-1 break-all font-mono text-xs font-medium text-gray-200">{installer.checksum}</dd>
+            </div>
           </dl>
           <a
             href={installer.installerPath}
@@ -700,7 +824,7 @@ function DownloadPanel({
   );
 }
 
-function TrustSections() {
+function TrustSections({ installer }: { installer: InstallerMeta }) {
   return (
     <section className="bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] py-20">
       <div className="container-page grid gap-10 lg:grid-cols-2">
@@ -732,15 +856,20 @@ function TrustSections() {
             <ul className="space-y-4 text-sm leading-6 text-gray-700">
               <li className="flex gap-3">
                 <ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" size={18} />
-                <span>Publish a signed installer and replace this placeholder with your code-signing details.</span>
+                <span>Publisher: {product.publisher}</span>
               </li>
               <li className="flex gap-3">
                 <ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" size={18} />
-                <span>{product.checksum}</span>
+                <span className="break-all">SHA-256: {installer.checksum}</span>
               </li>
               <li className="flex gap-3">
                 <ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" size={18} />
-                <span>Keep older release notes available so teams can validate update behavior before rollout.</span>
+                <span>
+                  Support and vulnerability contact:{' '}
+                  <a className="font-semibold text-gray-950 hover:text-emerald-700" href={`mailto:${product.supportEmail}`}>
+                    {product.supportEmail}
+                  </a>
+                </span>
               </li>
             </ul>
           </div>
@@ -762,7 +891,7 @@ function Footer() {
           <a className="hover:text-gray-950" href="#security">
             Security
           </a>
-          <a className="hover:text-gray-950" href="mailto:support@example.com">
+          <a className="hover:text-gray-950" href={`mailto:${product.supportEmail}`}>
             Support
           </a>
         </div>
@@ -777,13 +906,14 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-white">
+      <LocalPreflightWarning canEdit={canEdit} installer={installer} />
       <Header installer={installer} />
       <main>
         <Hero copy={copy} editMode={editMode} updateCopy={updateCopy} installer={installer} />
         <Preview copy={copy} editMode={editMode} updateCopy={updateCopy} />
         <Features copy={copy} editMode={editMode} updateCopy={updateCopy} />
         <DownloadPanel copy={copy} editMode={editMode} updateCopy={updateCopy} installer={installer} />
-        <TrustSections />
+        <TrustSections installer={installer} />
       </main>
       <Footer />
       <EditorToolbar
