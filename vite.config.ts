@@ -2,11 +2,13 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { createWriteStream, mkdirSync, statSync, unlink } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { basename, join } from 'node:path';
+import { extname, basename, join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const maxUploadBytes = 500 * 1024 * 1024;
+const maxImageUploadBytes = 15 * 1024 * 1024;
 const localHostnames = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']);
+const imageExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
 
 function formatBytes(bytes: number) {
   if (bytes === 0) {
@@ -160,6 +162,106 @@ function uploadExeMiddleware(root: string) {
   };
 }
 
+function uploadImageMiddleware(root: string) {
+  return function handleUpload(request: IncomingMessage, response: ServerResponse, next: () => void) {
+    if (request.url !== '/__dev/upload-image' || request.method !== 'POST') {
+      next();
+      return;
+    }
+
+    if (!isAllowedLocalRequest(request)) {
+      sendJson(response, 403, { error: 'Image uploads are only allowed from the local development host.' });
+      request.resume();
+      return;
+    }
+
+    const contentLength = Number(request.headers['content-length'] || 0);
+    if (contentLength > maxImageUploadBytes) {
+      sendJson(response, 413, { error: 'Image is too large. Maximum upload size is 15 MB.' });
+      request.resume();
+      return;
+    }
+
+    const encodedFileName = request.headers['x-file-name'];
+    const fileNameHeader = Array.isArray(encodedFileName) ? encodedFileName[0] : encodedFileName;
+    let decodedFileName = '';
+
+    try {
+      decodedFileName = decodeURIComponent(fileNameHeader || '');
+    } catch {
+      sendJson(response, 400, { error: 'Invalid image file name.' });
+      request.resume();
+      return;
+    }
+
+    const fileName = basename(decodedFileName).replace(/[^a-zA-Z0-9._-]/g, '-');
+    const extension = extname(fileName).toLowerCase();
+
+    if (!imageExtensions.has(extension)) {
+      sendJson(response, 400, { error: 'Use a JPG, PNG, WebP, or GIF image.' });
+      request.resume();
+      return;
+    }
+
+    const screenshotsDir = join(root, 'public', 'screenshots');
+    mkdirSync(screenshotsDir, { recursive: true });
+
+    const outputPath = join(screenshotsDir, fileName);
+    const writeStream = createWriteStream(outputPath);
+    let receivedBytes = 0;
+    let settled = false;
+
+    function fail(statusCode: number, error: string) {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      writeStream.destroy();
+      unlink(outputPath, () => undefined);
+      sendJson(response, statusCode, { error });
+    }
+
+    request.on('data', (chunk: Buffer) => {
+      receivedBytes += chunk.length;
+
+      if (receivedBytes > maxImageUploadBytes) {
+        fail(413, 'Image is too large. Maximum upload size is 15 MB.');
+        request.destroy();
+      }
+    });
+
+    request.pipe(writeStream);
+
+    request.on('error', () => {
+      fail(500, 'Upload stream failed.');
+    });
+
+    request.on('aborted', () => {
+      fail(400, 'Upload was aborted.');
+    });
+
+    writeStream.on('error', () => {
+      fail(500, 'Could not save image.');
+    });
+
+    writeStream.on('finish', () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      const sizeBytes = statSync(outputPath).size;
+      sendJson(response, 200, {
+        fileName,
+        fileSize: formatBytes(sizeBytes),
+        imagePath: `/screenshots/${fileName}`,
+        sizeBytes,
+      });
+    });
+  };
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -167,6 +269,7 @@ export default defineConfig({
       name: 'local-exe-upload',
       configureServer(server) {
         server.middlewares.use(uploadExeMiddleware(server.config.root));
+        server.middlewares.use(uploadImageMiddleware(server.config.root));
       },
     },
   ],

@@ -1,4 +1,14 @@
-import { useEffect, useMemo, useState, type ElementType, type FocusEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CSSProperties,
+  type ElementType,
+  type FocusEvent,
+  type ReactNode,
+} from 'react';
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -6,19 +16,28 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  Cloud,
+  Download,
   Edit3,
+  ExternalLink,
   FileText,
   Gauge,
+  Github,
   HardDriveDownload,
+  Image,
   Loader2,
   LockKeyhole,
   Menu,
   MonitorCog,
+  Palette,
+  PanelRightOpen,
   RotateCcw,
+  Save,
   ScanSearch,
   ShieldCheck,
   Sparkles,
   TerminalSquare,
+  Upload,
   UploadCloud,
   Workflow,
   X,
@@ -53,56 +72,139 @@ const defaultCopy = {
   downloadTitle: 'Get the latest Windows installer.',
   downloadDescription:
     'Point the download button to your signed .exe installer. Keep version, file size, and checksum visible so users know exactly what they are installing.',
+  featureFastTitle: 'Fast daily workflow',
+  featureFastText:
+    'Open, process, and export common tasks through a clean desktop interface designed for repeat use.',
+  featureNativeTitle: 'Native Windows experience',
+  featureNativeText:
+    'Installer-ready distribution with familiar system behavior, local file access, and desktop shortcuts.',
+  featureAutomationTitle: 'Automated task paths',
+  featureAutomationText:
+    'Use presets and guided flows to reduce setup time while keeping important controls easy to reach.',
+  featureHistoryTitle: 'Clear activity history',
+  featureHistoryText: 'Review recent actions, completed jobs, warnings, and outputs without digging through log files.',
+  featurePerformanceTitle: 'Performance focused',
+  featurePerformanceText:
+    'The interface keeps heavyweight operations visible, cancellable, and separate from lightweight browsing.',
+  featureSecurityTitle: 'Security-minded install',
+  featureSecurityText: 'Publish version details, hashes, and update notes so users can verify what they are downloading.',
+  changelogOne: 'Improved startup time for large project folders.',
+  changelogTwo: 'Added clearer installer messaging for managed Windows devices.',
+  changelogThree: 'Fixed a display issue in compact task history view.',
 };
+
+const defaultProductMeta = {
+  name: product.name,
+  version: product.version,
+  windowsSupport: product.windowsSupport,
+  releaseDate: product.releaseDate,
+  publisher: product.publisher,
+  supportEmail: product.supportEmail,
+  screenshotPath: product.screenshotPath,
+};
+
+const defaultInstallerMeta = {
+  fileName: product.fileName,
+  fileSize: product.fileSize,
+  installerPath: product.installerPath,
+  checksum: product.checksum,
+  sizeBytes: 0,
+  githubOwner: '',
+  githubRepo: '',
+  githubAssetName: product.fileName,
+  mirrors: [
+    { id: 'github-releases', label: 'GitHub Releases', url: '', enabled: false },
+    { id: 'google-drive', label: 'Google Drive', url: '', enabled: false },
+    { id: 'onedrive', label: 'OneDrive', url: '', enabled: false },
+    { id: 'dropbox', label: 'Dropbox', url: '', enabled: false },
+    { id: 'custom', label: 'Custom mirror', url: '', enabled: false },
+  ],
+};
+
+const defaultTheme = {
+  backgroundType: 'gradient',
+  backgroundColor: '#060a12',
+  gradientStart: '#07111f',
+  gradientEnd: '#0f2f2a',
+  patternColor: '#12352f',
+  pageBackground: '#060a12',
+  sectionBackground: '#0b1220',
+  alternateSectionBackground: '#111827',
+  surfaceColor: '#151f2e',
+  subtleSurfaceColor: '#0f172a',
+  borderColor: '#2b3648',
+  textColor: '#f8fafc',
+  mutedTextColor: '#a7b0c0',
+  headerBackground: '#080d16',
+  downloadBackground: '#050812',
+  downloadTextColor: '#f8fafc',
+  accentColor: '#22c55e',
+  buttonTextColor: '#04130a',
+  backgroundImage: '',
+  overlayOpacity: 0.45,
+  density: 'normal',
+} satisfies LandingTheme;
 
 type CopyKey = keyof typeof defaultCopy;
 type EditableCopy = Record<CopyKey, string>;
+type ProductMeta = typeof defaultProductMeta;
+type LandingTheme = {
+  backgroundType: 'solid' | 'gradient' | 'image' | 'pattern';
+  backgroundColor: string;
+  gradientStart: string;
+  gradientEnd: string;
+  patternColor: string;
+  pageBackground: string;
+  sectionBackground: string;
+  alternateSectionBackground: string;
+  surfaceColor: string;
+  subtleSurfaceColor: string;
+  borderColor: string;
+  textColor: string;
+  mutedTextColor: string;
+  headerBackground: string;
+  downloadBackground: string;
+  downloadTextColor: string;
+  accentColor: string;
+  buttonTextColor: string;
+  backgroundImage: string;
+  overlayOpacity: number;
+  density: 'compact' | 'normal' | 'spacious';
+};
 type InstallerMeta = {
   fileName: string;
   fileSize: string;
   installerPath: string;
   checksum: string;
   sizeBytes: number;
+  githubOwner: string;
+  githubRepo: string;
+  githubAssetName: string;
+  mirrors: DownloadMirror[];
 };
+type DownloadMirror = {
+  id: string;
+  label: string;
+  url: string;
+  enabled: boolean;
+};
+type SaveState = 'saved' | 'saving';
 
-const features = [
-  {
-    icon: Zap,
-    title: 'Fast daily workflow',
-    text: 'Open, process, and export common tasks through a clean desktop interface designed for repeat use.',
-  },
-  {
-    icon: MonitorCog,
-    title: 'Native Windows experience',
-    text: 'Installer-ready distribution with familiar system behavior, local file access, and desktop shortcuts.',
-  },
-  {
-    icon: Workflow,
-    title: 'Automated task paths',
-    text: 'Use presets and guided flows to reduce setup time while keeping important controls easy to reach.',
-  },
-  {
-    icon: ScanSearch,
-    title: 'Clear activity history',
-    text: 'Review recent actions, completed jobs, warnings, and outputs without digging through log files.',
-  },
-  {
-    icon: Gauge,
-    title: 'Performance focused',
-    text: 'The interface keeps heavyweight operations visible, cancellable, and separate from lightweight browsing.',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Security-minded install',
-    text: 'Publish version details, hashes, and update notes so users can verify what they are downloading.',
-  },
+const copyStorageKey = 'myapp-landing-copy';
+const productStorageKey = 'myapp-product-meta';
+const installerStorageKey = 'myapp-installer-meta';
+const themeStorageKey = 'myapp-landing-theme-v2';
+
+const featureCards: Array<{ icon: ElementType; titleKey: CopyKey; textKey: CopyKey }> = [
+  { icon: Zap, titleKey: 'featureFastTitle', textKey: 'featureFastText' },
+  { icon: MonitorCog, titleKey: 'featureNativeTitle', textKey: 'featureNativeText' },
+  { icon: Workflow, titleKey: 'featureAutomationTitle', textKey: 'featureAutomationText' },
+  { icon: ScanSearch, titleKey: 'featureHistoryTitle', textKey: 'featureHistoryText' },
+  { icon: Gauge, titleKey: 'featurePerformanceTitle', textKey: 'featurePerformanceText' },
+  { icon: ShieldCheck, titleKey: 'featureSecurityTitle', textKey: 'featureSecurityText' },
 ];
 
-const changelog = [
-  'Improved startup time for large project folders.',
-  'Added clearer installer messaging for managed Windows devices.',
-  'Fixed a display issue in compact task history view.',
-];
+const changelogKeys: CopyKey[] = ['changelogOne', 'changelogTwo', 'changelogThree'];
 
 function isLocalEditingHost() {
   if (typeof window === 'undefined') {
@@ -112,102 +214,202 @@ function isLocalEditingHost() {
   return ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
 }
 
-function useEditableCopy() {
-  const canEdit = useMemo(isLocalEditingHost, []);
-  const [copy, setCopy] = useState<EditableCopy>(defaultCopy);
-  const [editMode, setEditMode] = useState(false);
+function isChanged<T>(value: T, defaultValue: T) {
+  return JSON.stringify(value) !== JSON.stringify(defaultValue);
+}
+
+function useLocalConfig<T extends object>(canEdit: boolean, storageKey: string, defaultValue: T) {
+  const [value, setValue] = useState<T>(defaultValue);
+  const [saveState, setSaveState] = useState<SaveState>('saved');
 
   useEffect(() => {
     if (!canEdit) {
       return;
     }
 
-    const saved = window.localStorage.getItem('myapp-landing-copy');
+    const saved = window.localStorage.getItem(storageKey);
     if (!saved) {
       return;
     }
 
     try {
-      setCopy({ ...defaultCopy, ...JSON.parse(saved) });
+      setValue({ ...defaultValue, ...JSON.parse(saved) });
     } catch {
-      window.localStorage.removeItem('myapp-landing-copy');
+      window.localStorage.removeItem(storageKey);
     }
-  }, [canEdit]);
+  }, [canEdit, defaultValue, storageKey]);
 
-  useEffect(() => {
+  function replaceValue(nextValue: T) {
+    setValue(nextValue);
     if (canEdit) {
-      window.localStorage.setItem('myapp-landing-copy', JSON.stringify(copy));
+      setSaveState('saving');
+      window.localStorage.setItem(storageKey, JSON.stringify(nextValue));
+      window.setTimeout(() => setSaveState('saved'), 250);
     }
-  }, [canEdit, copy]);
+  }
+
+  function patchValue(patch: Partial<T>) {
+    setValue((current) => {
+      const nextValue = { ...current, ...patch };
+      if (canEdit) {
+        setSaveState('saving');
+        window.localStorage.setItem(storageKey, JSON.stringify(nextValue));
+        window.setTimeout(() => setSaveState('saved'), 250);
+      }
+      return nextValue;
+    });
+  }
+
+  function resetValue() {
+    setValue(defaultValue);
+    if (canEdit) {
+      window.localStorage.removeItem(storageKey);
+      setSaveState('saved');
+    }
+  }
+
+  return {
+    value,
+    replaceValue,
+    patchValue,
+    resetValue,
+    saveState,
+    hasChanges: isChanged(value, defaultValue),
+  };
+}
+
+function useEditableCopy() {
+  const canEdit = useMemo(isLocalEditingHost, []);
+  const [editMode, setEditMode] = useState(false);
+  const copyConfig = useLocalConfig<EditableCopy>(canEdit, copyStorageKey, defaultCopy);
 
   function updateCopy(key: CopyKey, value: string) {
-    setCopy((current) => ({ ...current, [key]: value }));
+    copyConfig.patchValue({ [key]: value } as Partial<EditableCopy>);
   }
 
-  function resetCopy() {
-    setCopy(defaultCopy);
-    window.localStorage.removeItem('myapp-landing-copy');
-  }
-
-  return { canEdit, copy, editMode, setEditMode, updateCopy, resetCopy };
+  return { canEdit, copyConfig, editMode, setEditMode, updateCopy };
 }
 
 function useInstallerMeta(canEdit: boolean) {
-  const [installer, setInstaller] = useState<InstallerMeta>({
-    fileName: product.fileName,
-    fileSize: product.fileSize,
-    installerPath: product.installerPath,
-    checksum: product.checksum,
-    sizeBytes: 0,
+  return useLocalConfig<InstallerMeta>(canEdit, installerStorageKey, defaultInstallerMeta);
+}
+
+function sectionPadding(theme: LandingTheme) {
+  if (theme.density === 'compact') {
+    return 'py-14';
+  }
+
+  if (theme.density === 'spacious') {
+    return 'py-24';
+  }
+
+  return 'py-20';
+}
+
+function getHeroStyle(theme: LandingTheme): CSSProperties {
+  if (theme.backgroundType === 'solid') {
+    return { background: theme.backgroundColor, color: theme.textColor };
+  }
+
+  if (theme.backgroundType === 'image' && theme.backgroundImage) {
+    const overlay = Math.round(theme.overlayOpacity * 255)
+      .toString(16)
+      .padStart(2, '0');
+    return {
+      backgroundImage: `linear-gradient(135deg, #ffffff${overlay}, #ffffff${overlay}), url("${theme.backgroundImage}")`,
+      backgroundPosition: 'center',
+      backgroundSize: 'cover',
+      color: theme.textColor,
+    };
+  }
+
+  if (theme.backgroundType === 'pattern') {
+    return {
+      backgroundColor: theme.backgroundColor,
+      backgroundImage: `radial-gradient(${theme.patternColor} 1px, transparent 1px)`,
+      backgroundSize: '18px 18px',
+      color: theme.textColor,
+    };
+  }
+
+  return {
+    backgroundImage: `linear-gradient(135deg, ${theme.gradientStart} 0%, ${theme.gradientEnd} 54%, ${theme.pageBackground} 100%)`,
+    color: theme.textColor,
+  };
+}
+
+function getAccentStyle(theme: LandingTheme): CSSProperties {
+  return { backgroundColor: theme.accentColor };
+}
+
+function getSurfaceStyle(theme: LandingTheme): CSSProperties {
+  return { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor, color: theme.textColor };
+}
+
+function getSubtleSurfaceStyle(theme: LandingTheme): CSSProperties {
+  return { backgroundColor: theme.subtleSurfaceColor, borderColor: theme.borderColor, color: theme.textColor };
+}
+
+function getSectionStyle(theme: LandingTheme, alternate = false): CSSProperties {
+  return {
+    backgroundColor: alternate ? theme.alternateSectionBackground : theme.sectionBackground,
+    color: theme.textColor,
+  };
+}
+
+function getInstallerMirrors(installer: InstallerMeta) {
+  const currentMirrors = installer.mirrors ?? [];
+  const defaultIds = new Set(defaultInstallerMeta.mirrors.map((mirror) => mirror.id));
+  const mergedDefaults = defaultInstallerMeta.mirrors.map((defaultMirror) => ({
+    ...defaultMirror,
+    ...currentMirrors.find((mirror) => mirror.id === defaultMirror.id),
+  }));
+  const customMirrors = currentMirrors.filter((mirror) => !defaultIds.has(mirror.id));
+
+  return [...mergedDefaults, ...customMirrors];
+}
+
+function getGitHubReleaseUrl(installer: InstallerMeta) {
+  const owner = installer.githubOwner.trim();
+  const repo = installer.githubRepo.trim();
+  const assetName = installer.githubAssetName.trim() || installer.fileName.trim();
+
+  if (!owner || !repo || !assetName) {
+    return '';
+  }
+
+  return `https://github.com/${owner}/${repo}/releases/latest/download/${encodeURIComponent(assetName)}`;
+}
+
+function getGoogleDriveDirectUrl(url: string) {
+  const trimmedUrl = url.trim();
+  const fileMatch = trimmedUrl.match(/\/file\/d\/([^/]+)/);
+  const idMatch = trimmedUrl.match(/[?&]id=([^&]+)/);
+  const fileId = fileMatch?.[1] || idMatch?.[1];
+
+  if (!fileId) {
+    return trimmedUrl;
+  }
+
+  return `https://drive.google.com/uc?export=download&id=${fileId}`;
+}
+
+async function uploadLocalFile(file: File, endpoint: string) {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/octet-stream',
+      'x-file-name': encodeURIComponent(file.name),
+    },
+    body: file,
   });
 
-  useEffect(() => {
-    if (!canEdit) {
-      return;
-    }
-
-    const saved = window.localStorage.getItem('myapp-installer-meta');
-    if (!saved) {
-      return;
-    }
-
-    try {
-      setInstaller({
-        fileName: product.fileName,
-        fileSize: product.fileSize,
-        installerPath: product.installerPath,
-        checksum: product.checksum,
-        sizeBytes: 0,
-        ...JSON.parse(saved),
-      });
-    } catch {
-      window.localStorage.removeItem('myapp-installer-meta');
-    }
-  }, [canEdit]);
-
-  function updateInstaller(nextInstaller: InstallerMeta) {
-    setInstaller(nextInstaller);
-    if (canEdit) {
-      window.localStorage.setItem('myapp-installer-meta', JSON.stringify(nextInstaller));
-    }
+  if (!response.ok) {
+    const body = await response.json().catch(() => undefined);
+    throw new Error(body?.error || (await response.text()) || 'Upload failed.');
   }
 
-  function resetInstaller() {
-    const defaultInstaller = {
-      fileName: product.fileName,
-      fileSize: product.fileSize,
-      installerPath: product.installerPath,
-      checksum: product.checksum,
-      sizeBytes: 0,
-    };
-
-    setInstaller(defaultInstaller);
-    if (canEdit) {
-      window.localStorage.removeItem('myapp-installer-meta');
-    }
-  }
-
-  return { installer, updateInstaller, resetInstaller };
+  return response.json();
 }
 
 function EditableText({
@@ -217,6 +419,7 @@ function EditableText({
   editMode,
   updateCopy,
   className = '',
+  style,
 }: {
   as?: ElementType;
   copyKey: CopyKey;
@@ -224,11 +427,13 @@ function EditableText({
   editMode: boolean;
   updateCopy: (key: CopyKey, value: string) => void;
   className?: string;
+  style?: CSSProperties;
 }) {
   return (
     <Component
       className={`${className} ${editMode ? 'editable-copy' : ''}`}
       contentEditable={editMode}
+      style={style}
       suppressContentEditableWarning
       onBlur={(event: FocusEvent<HTMLElement>) =>
         updateCopy(copyKey, event.currentTarget.textContent?.trim() || defaultCopy[copyKey])
@@ -243,16 +448,22 @@ function EditorToolbar({
   canEdit,
   editMode,
   setEditMode,
-  resetCopy,
-  resetInstaller,
+  isDrawerOpen,
+  setIsDrawerOpen,
+  installer,
   updateInstaller,
+  saveState,
+  hasChanges,
 }: {
   canEdit: boolean;
   editMode: boolean;
   setEditMode: (value: boolean) => void;
-  resetCopy: () => void;
-  resetInstaller: () => void;
+  isDrawerOpen: boolean;
+  setIsDrawerOpen: (value: boolean) => void;
+  installer: InstallerMeta;
   updateInstaller: (installer: InstallerMeta) => void;
+  saveState: SaveState;
+  hasChanges: boolean;
 }) {
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState('Drop a Windows .exe installer here.');
@@ -271,21 +482,8 @@ function EditorToolbar({
     setMessage(`Uploading ${file.name}...`);
 
     try {
-      const response = await fetch('/__dev/upload-exe', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/octet-stream',
-          'x-file-name': encodeURIComponent(file.name),
-        },
-        body: file,
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const uploaded = (await response.json()) as InstallerMeta;
-      updateInstaller(uploaded);
+      const uploaded = (await uploadLocalFile(file, '/__dev/upload-exe')) as Omit<InstallerMeta, 'mirrors'>;
+      updateInstaller({ ...installer, ...uploaded });
       setMessage(`${uploaded.fileName} deployed locally. Size: ${uploaded.fileSize}. SHA-256 generated.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Upload failed.');
@@ -295,7 +493,7 @@ function EditorToolbar({
   }
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 rounded-xl border border-gray-200 bg-white/95 p-2 shadow-soft backdrop-blur">
+    <div className="fixed bottom-4 left-1/2 z-50 w-[calc(100%-2rem)] max-w-4xl -translate-x-1/2 rounded-xl border border-gray-200 bg-white/95 p-2 shadow-soft backdrop-blur">
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -305,20 +503,20 @@ function EditorToolbar({
           }`}
         >
           <Edit3 size={16} />
-          {editMode ? 'Developer Edit On' : 'Developer Edit'}
+          {editMode ? 'Inline Edit On' : 'Inline Edit'}
         </button>
         <button
           type="button"
-          onClick={() => {
-            resetCopy();
-            resetInstaller();
-            setMessage('Local edits and installer metadata reset.');
-          }}
+          onClick={() => setIsDrawerOpen(!isDrawerOpen)}
           className="inline-flex min-h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
         >
-          <RotateCcw size={16} />
-          Reset
+          <PanelRightOpen size={16} />
+          Customize
         </button>
+        <span className="inline-flex min-h-10 items-center gap-2 rounded-md bg-gray-50 px-3 text-xs font-semibold text-gray-600">
+          <Save size={15} />
+          {saveState === 'saving' ? 'Saving...' : hasChanges ? 'Saved locally' : 'Defaults active'}
+        </span>
         <span className="text-xs font-medium text-gray-500">Localhost only</span>
       </div>
       {editMode ? (
@@ -339,7 +537,9 @@ function EditorToolbar({
             <UploadCloud className="text-emerald-700" size={24} />
           )}
           <span className="mt-2 text-sm font-semibold text-gray-950">Drop installer or click to upload</span>
-          <span className="mt-1 text-xs text-gray-600">{message}</span>
+          <span className="mt-1 text-xs text-gray-600">
+            {installer.installerPath} - {message}
+          </span>
           <input
             className="sr-only"
             type="file"
@@ -358,23 +558,779 @@ function EditorToolbar({
   );
 }
 
+function EditorDrawer({
+  canEdit,
+  isOpen,
+  onClose,
+  copy,
+  updateCopy,
+  replaceCopy,
+  resetCopy,
+  productMeta,
+  updateProductMeta,
+  replaceProductMeta,
+  resetProductMeta,
+  installer,
+  updateInstaller,
+  replaceInstaller,
+  resetInstaller,
+  theme,
+  updateTheme,
+  replaceTheme,
+  resetTheme,
+}: {
+  canEdit: boolean;
+  isOpen: boolean;
+  onClose: () => void;
+  copy: EditableCopy;
+  updateCopy: (key: CopyKey, value: string) => void;
+  replaceCopy: (copy: EditableCopy) => void;
+  resetCopy: () => void;
+  productMeta: ProductMeta;
+  updateProductMeta: (patch: Partial<ProductMeta>) => void;
+  replaceProductMeta: (meta: ProductMeta) => void;
+  resetProductMeta: () => void;
+  installer: InstallerMeta;
+  updateInstaller: (patch: Partial<InstallerMeta>) => void;
+  replaceInstaller: (installer: InstallerMeta) => void;
+  resetInstaller: () => void;
+  theme: LandingTheme;
+  updateTheme: (patch: Partial<LandingTheme>) => void;
+  replaceTheme: (theme: LandingTheme) => void;
+  resetTheme: () => void;
+}) {
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [uploadMessage, setUploadMessage] = useState('Upload background or screenshot images to /public/screenshots.');
+
+  if (!canEdit) {
+    return null;
+  }
+
+  function exportJson() {
+    const payload = JSON.stringify({ copy, productMeta, installer, theme }, null, 2);
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${productMeta.name.toLowerCase()}-landing-config.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importJson(file: File) {
+    const parsed = JSON.parse(await file.text()) as {
+      copy?: Partial<EditableCopy>;
+      productMeta?: Partial<ProductMeta>;
+      installer?: Partial<InstallerMeta>;
+      theme?: Partial<LandingTheme>;
+    };
+
+    if (parsed.copy) {
+      replaceCopy({ ...defaultCopy, ...parsed.copy });
+    }
+    if (parsed.productMeta) {
+      replaceProductMeta({ ...defaultProductMeta, ...parsed.productMeta });
+    }
+    if (parsed.installer) {
+      replaceInstaller({ ...defaultInstallerMeta, ...parsed.installer });
+    }
+    if (parsed.theme) {
+      replaceTheme({ ...defaultTheme, ...parsed.theme });
+    }
+  }
+
+  async function uploadImage(file: File, target: 'background' | 'screenshot') {
+    setUploadMessage(`Uploading ${file.name}...`);
+
+    try {
+      const uploaded = (await uploadLocalFile(file, '/__dev/upload-image')) as { imagePath: string; fileSize: string };
+      if (target === 'background') {
+        updateTheme({ backgroundImage: uploaded.imagePath, backgroundType: 'image' });
+      } else {
+        updateProductMeta({ screenshotPath: uploaded.imagePath });
+      }
+      setUploadMessage(`${uploaded.imagePath} saved locally (${uploaded.fileSize}).`);
+    } catch (error) {
+      setUploadMessage(error instanceof Error ? error.message : 'Image upload failed.');
+    }
+  }
+
+  function updateMirror(id: string, patch: Partial<DownloadMirror>) {
+    updateInstaller({
+      mirrors: getInstallerMirrors(installer).map((mirror) => (mirror.id === id ? { ...mirror, ...patch } : mirror)),
+    });
+  }
+
+  function getMirror(id: string) {
+    return getInstallerMirrors(installer).find((mirror) => mirror.id === id) ?? {
+      id,
+      label: id,
+      url: '',
+      enabled: false,
+    };
+  }
+
+  function updateDistributionLink(id: string, url: string) {
+    updateMirror(id, { url, enabled: Boolean(url.trim()) });
+  }
+
+  function useMirrorAsPrimary(id: string) {
+    const mirror = getMirror(id);
+    if (mirror.url.trim()) {
+      updateInstaller({ installerPath: mirror.url.trim() });
+    }
+  }
+
+  function applyGitHubReleaseUrl(useAsPrimary = false) {
+    const url = getGitHubReleaseUrl(installer);
+
+    if (!url) {
+      return;
+    }
+
+    const mirrors = getInstallerMirrors(installer).map((mirror) =>
+      mirror.id === 'github-releases' ? { ...mirror, url, enabled: true } : mirror,
+    );
+
+    updateInstaller({
+      mirrors,
+      ...(useAsPrimary ? { installerPath: url } : {}),
+    });
+  }
+
+  const googleDriveMirror = getMirror('google-drive');
+  const oneDriveMirror = getMirror('onedrive');
+
+  return (
+    <>
+      <div
+        className={`fixed inset-0 z-[55] bg-gray-950/30 transition ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        onClick={onClose}
+      />
+      <aside
+        className={`fixed right-0 top-0 z-[60] h-full w-full max-w-xl overflow-y-auto border-l border-gray-200 bg-white shadow-2xl transition-transform duration-300 ${
+          isOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        aria-hidden={!isOpen}
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white/95 px-5 py-4 backdrop-blur">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wider text-emerald-700">Developer editor</p>
+            <h2 className="text-xl font-semibold text-gray-950">Copy, release, and theme</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-grid size-10 place-items-center rounded-md border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+            aria-label="Close editor"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-5 p-5 pb-32">
+          <EditorSection title="Actions" icon={Download}>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button type="button" className="editor-button" onClick={exportJson}>
+                <Download size={16} />
+                Export JSON
+              </button>
+              <button type="button" className="editor-button" onClick={() => importInputRef.current?.click()}>
+                <Upload size={16} />
+                Import JSON
+              </button>
+              <button
+                type="button"
+                className="editor-button sm:col-span-2"
+                onClick={() => {
+                  resetCopy();
+                  resetProductMeta();
+                  resetInstaller();
+                  resetTheme();
+                }}
+              >
+                <RotateCcw size={16} />
+                Reset all local edits
+              </button>
+            </div>
+            <input
+              ref={importInputRef}
+              className="sr-only"
+              type="file"
+              accept="application/json,.json"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                if (file) {
+                  void importJson(file);
+                }
+                event.currentTarget.value = '';
+              }}
+            />
+          </EditorSection>
+
+          <EditorSection title="Distribution links" icon={Cloud}>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+              <p className="font-semibold">Simple setup</p>
+              <p className="mt-1 leading-6">
+                Paste a hosted installer link, then choose whether it is a mirror or the main download button.
+              </p>
+            </div>
+            <TextField
+              label="Current main download URL"
+              value={installer.installerPath}
+              onChange={(value) => updateInstaller({ installerPath: value })}
+            />
+
+            <div className="rounded-lg border border-gray-200 p-3">
+              <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <Github size={15} />
+                GitHub Releases
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <TextField
+                  label="Owner"
+                  value={installer.githubOwner}
+                  onChange={(value) => updateInstaller({ githubOwner: value })}
+                />
+                <TextField
+                  label="Repo"
+                  value={installer.githubRepo}
+                  onChange={(value) => updateInstaller({ githubRepo: value })}
+                />
+                <TextField
+                  label="Asset file"
+                  value={installer.githubAssetName}
+                  onChange={(value) => updateInstaller({ githubAssetName: value })}
+                />
+              </div>
+              <TextField
+                label="Generated GitHub URL"
+                value={getGitHubReleaseUrl(installer)}
+                onChange={() => undefined}
+              />
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <button type="button" className="editor-button justify-center" onClick={() => applyGitHubReleaseUrl(false)}>
+                  <ExternalLink size={16} />
+                  Show as mirror
+                </button>
+                <button type="button" className="editor-button justify-center" onClick={() => applyGitHubReleaseUrl(true)}>
+                  <HardDriveDownload size={16} />
+                  Make main download
+                </button>
+              </div>
+            </div>
+
+            <QuickMirrorEditor
+              label="Google Drive"
+              mirror={googleDriveMirror}
+              onChange={(value) => updateDistributionLink('google-drive', value)}
+              onPrimary={() => useMirrorAsPrimary('google-drive')}
+              extraAction={
+                googleDriveMirror.url.trim() ? (
+                  <button
+                    type="button"
+                    className="editor-button justify-center"
+                    onClick={() => updateDistributionLink('google-drive', getGoogleDriveDirectUrl(googleDriveMirror.url))}
+                  >
+                    <Download size={16} />
+                    Convert Drive link
+                  </button>
+                ) : null
+              }
+            />
+
+            <QuickMirrorEditor
+              label="OneDrive"
+              mirror={oneDriveMirror}
+              onChange={(value) => updateDistributionLink('onedrive', value)}
+              onPrimary={() => useMirrorAsPrimary('onedrive')}
+            />
+
+            <div className="grid gap-2 rounded-lg border border-gray-200 p-3 text-sm text-gray-600">
+              <p>
+                Active mirrors:{' '}
+                <span className="font-semibold text-gray-950">
+                  {getInstallerMirrors(installer).filter((mirror) => mirror.enabled && mirror.url.trim()).length}
+                </span>
+              </p>
+              <p>Google Drive and OneDrive links are easiest as backup mirrors. GitHub Releases is better as the main host.</p>
+            </div>
+          </EditorSection>
+
+          <EditorSection title="Hero and preview" icon={Edit3}>
+            <TextField label="Eyebrow" value={copy.eyebrow} onChange={(value) => updateCopy('eyebrow', value)} />
+            <TextField label="Hero title" value={copy.heroTitle} onChange={(value) => updateCopy('heroTitle', value)} />
+            <TextField
+              label="Hero description"
+              value={copy.heroDescription}
+              onChange={(value) => updateCopy('heroDescription', value)}
+              multiline
+            />
+            <TextField label="Preview title" value={copy.previewTitle} onChange={(value) => updateCopy('previewTitle', value)} />
+            <TextField
+              label="Preview description"
+              value={copy.previewDescription}
+              onChange={(value) => updateCopy('previewDescription', value)}
+              multiline
+            />
+          </EditorSection>
+
+          <EditorSection title="Features" icon={Sparkles}>
+            <TextField
+              label="Section title"
+              value={copy.featuresTitle}
+              onChange={(value) => updateCopy('featuresTitle', value)}
+            />
+            <TextField
+              label="Section description"
+              value={copy.featuresDescription}
+              onChange={(value) => updateCopy('featuresDescription', value)}
+              multiline
+            />
+            {featureCards.map((feature, index) => (
+              <div className="rounded-lg border border-gray-200 p-3" key={feature.titleKey}>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Feature {index + 1}</p>
+                <TextField
+                  label="Title"
+                  value={copy[feature.titleKey]}
+                  onChange={(value) => updateCopy(feature.titleKey, value)}
+                />
+                <TextField
+                  label="Text"
+                  value={copy[feature.textKey]}
+                  onChange={(value) => updateCopy(feature.textKey, value)}
+                  multiline
+                />
+              </div>
+            ))}
+          </EditorSection>
+
+          <EditorSection title="CTA and changelog" icon={HardDriveDownload}>
+            <TextField
+              label="Download title"
+              value={copy.downloadTitle}
+              onChange={(value) => updateCopy('downloadTitle', value)}
+            />
+            <TextField
+              label="Download description"
+              value={copy.downloadDescription}
+              onChange={(value) => updateCopy('downloadDescription', value)}
+              multiline
+            />
+            {changelogKeys.map((key, index) => (
+              <TextField
+                key={key}
+                label={`Changelog item ${index + 1}`}
+                value={copy[key]}
+                onChange={(value) => updateCopy(key, value)}
+                multiline
+              />
+            ))}
+          </EditorSection>
+
+          <EditorSection title="Release and installer" icon={FileText}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TextField label="Product name" value={productMeta.name} onChange={(value) => updateProductMeta({ name: value })} />
+              <TextField label="Version" value={productMeta.version} onChange={(value) => updateProductMeta({ version: value })} />
+              <TextField
+                label="Windows support"
+                value={productMeta.windowsSupport}
+                onChange={(value) => updateProductMeta({ windowsSupport: value })}
+              />
+              <TextField
+                label="Release date"
+                value={productMeta.releaseDate}
+                onChange={(value) => updateProductMeta({ releaseDate: value })}
+              />
+              <TextField
+                label="Publisher"
+                value={productMeta.publisher}
+                onChange={(value) => updateProductMeta({ publisher: value })}
+              />
+              <TextField
+                label="Support email"
+                value={productMeta.supportEmail}
+                onChange={(value) => updateProductMeta({ supportEmail: value })}
+              />
+              <TextField
+                label="Installer filename"
+                value={installer.fileName}
+                onChange={(value) => updateInstaller({ fileName: value })}
+              />
+              <TextField
+                label="Installer path"
+                value={installer.installerPath}
+                onChange={(value) => updateInstaller({ installerPath: value })}
+              />
+              <TextField label="File size" value={installer.fileSize} onChange={(value) => updateInstaller({ fileSize: value })} />
+            </div>
+            <TextField
+              label="SHA-256 checksum"
+              value={installer.checksum}
+              onChange={(value) => updateInstaller({ checksum: value })}
+              multiline
+            />
+            <div className="rounded-lg border border-gray-200 p-3">
+              <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <Github size={15} />
+                GitHub Releases
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField
+                  label="Owner or org"
+                  value={installer.githubOwner}
+                  onChange={(value) => updateInstaller({ githubOwner: value })}
+                />
+                <TextField
+                  label="Repository"
+                  value={installer.githubRepo}
+                  onChange={(value) => updateInstaller({ githubRepo: value })}
+                />
+                <TextField
+                  label="Release asset filename"
+                  value={installer.githubAssetName}
+                  onChange={(value) => updateInstaller({ githubAssetName: value })}
+                />
+                <label className="editor-label">
+                  Generated latest-release URL
+                  <input className="editor-input" readOnly value={getGitHubReleaseUrl(installer)} />
+                </label>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <button type="button" className="editor-button justify-center" onClick={() => applyGitHubReleaseUrl(false)}>
+                  <Github size={16} />
+                  Add as mirror
+                </button>
+                <button type="button" className="editor-button justify-center" onClick={() => applyGitHubReleaseUrl(true)}>
+                  <HardDriveDownload size={16} />
+                  Use as primary
+                </button>
+              </div>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3">
+              <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <Cloud size={15} />
+                External drive mirrors
+              </div>
+              <div className="space-y-4">
+                {getInstallerMirrors(installer).map((mirror) => (
+                  <div className="grid gap-3 rounded-md bg-gray-50 p-3" key={mirror.id}>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                      <input
+                        type="checkbox"
+                        checked={mirror.enabled}
+                        onChange={(event) => updateMirror(mirror.id, { enabled: event.currentTarget.checked })}
+                      />
+                      Show {mirror.label} option
+                    </label>
+                    <div className="grid gap-3 sm:grid-cols-[0.45fr_1fr]">
+                      <TextField
+                        label="Button label"
+                        value={mirror.label}
+                        onChange={(value) => updateMirror(mirror.id, { label: value })}
+                      />
+                      <TextField
+                        label="Share link"
+                        value={mirror.url}
+                        onChange={(value) => updateMirror(mirror.id, { url: value })}
+                      />
+                    </div>
+                    {mirror.url.trim() ? (
+                      <button
+                        type="button"
+                        className="editor-button justify-center"
+                        onClick={() => updateInstaller({ installerPath: mirror.url })}
+                      >
+                        <HardDriveDownload size={16} />
+                        Use this as primary
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </EditorSection>
+
+          <EditorSection title="Background and style" icon={Palette}>
+            <label className="editor-label">
+              Background type
+              <select
+                className="editor-input"
+                value={theme.backgroundType}
+                onChange={(event) => updateTheme({ backgroundType: event.currentTarget.value as LandingTheme['backgroundType'] })}
+              >
+                <option value="solid">Solid color</option>
+                <option value="gradient">Gradient</option>
+                <option value="image">Image</option>
+                <option value="pattern">Subtle pattern</option>
+              </select>
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ColorField label="Accent color" value={theme.accentColor} onChange={(value) => updateTheme({ accentColor: value })} />
+              <ColorField
+                label="Button text"
+                value={theme.buttonTextColor}
+                onChange={(value) => updateTheme({ buttonTextColor: value })}
+              />
+              <ColorField
+                label="Background color"
+                value={theme.backgroundColor}
+                onChange={(value) => updateTheme({ backgroundColor: value })}
+              />
+              <ColorField
+                label="Page background"
+                value={theme.pageBackground}
+                onChange={(value) => updateTheme({ pageBackground: value })}
+              />
+              <ColorField
+                label="Gradient start"
+                value={theme.gradientStart}
+                onChange={(value) => updateTheme({ gradientStart: value })}
+              />
+              <ColorField
+                label="Gradient end"
+                value={theme.gradientEnd}
+                onChange={(value) => updateTheme({ gradientEnd: value })}
+              />
+              <ColorField
+                label="Pattern color"
+                value={theme.patternColor}
+                onChange={(value) => updateTheme({ patternColor: value })}
+              />
+              <ColorField
+                label="Section background"
+                value={theme.sectionBackground}
+                onChange={(value) => updateTheme({ sectionBackground: value })}
+              />
+              <ColorField
+                label="Alt section background"
+                value={theme.alternateSectionBackground}
+                onChange={(value) => updateTheme({ alternateSectionBackground: value })}
+              />
+              <ColorField
+                label="Card surface"
+                value={theme.surfaceColor}
+                onChange={(value) => updateTheme({ surfaceColor: value })}
+              />
+              <ColorField
+                label="Subtle surface"
+                value={theme.subtleSurfaceColor}
+                onChange={(value) => updateTheme({ subtleSurfaceColor: value })}
+              />
+              <ColorField
+                label="Border color"
+                value={theme.borderColor}
+                onChange={(value) => updateTheme({ borderColor: value })}
+              />
+              <ColorField label="Text color" value={theme.textColor} onChange={(value) => updateTheme({ textColor: value })} />
+              <ColorField
+                label="Muted text"
+                value={theme.mutedTextColor}
+                onChange={(value) => updateTheme({ mutedTextColor: value })}
+              />
+              <ColorField
+                label="Header background"
+                value={theme.headerBackground}
+                onChange={(value) => updateTheme({ headerBackground: value })}
+              />
+              <ColorField
+                label="Download background"
+                value={theme.downloadBackground}
+                onChange={(value) => updateTheme({ downloadBackground: value })}
+              />
+              <ColorField
+                label="Download text"
+                value={theme.downloadTextColor}
+                onChange={(value) => updateTheme({ downloadTextColor: value })}
+              />
+              <label className="editor-label">
+                Section density
+                <select
+                  className="editor-input"
+                  value={theme.density}
+                  onChange={(event) => updateTheme({ density: event.currentTarget.value as LandingTheme['density'] })}
+                >
+                  <option value="compact">Compact</option>
+                  <option value="normal">Normal</option>
+                  <option value="spacious">Spacious</option>
+                </select>
+              </label>
+            </div>
+            <TextField
+              label="Background image path"
+              value={theme.backgroundImage}
+              onChange={(value) => updateTheme({ backgroundImage: value })}
+            />
+            <label className="editor-label">
+              Overlay opacity
+              <input
+                className="editor-input"
+                type="range"
+                min="0"
+                max="0.75"
+                step="0.05"
+                value={theme.overlayOpacity}
+                onChange={(event) => updateTheme({ overlayOpacity: Number(event.currentTarget.value) })}
+              />
+            </label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <ImageUploadButton label="Upload background" onUpload={(file) => uploadImage(file, 'background')} />
+              <ImageUploadButton label="Upload screenshot" onUpload={(file) => uploadImage(file, 'screenshot')} />
+            </div>
+            <p className="text-xs leading-5 text-gray-500">{uploadMessage}</p>
+          </EditorSection>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function EditorSection({ title, icon: Icon, children }: { title: string; icon: ElementType; children: ReactNode }) {
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-950">
+        <Icon size={17} className="text-emerald-700" />
+        {title}
+      </div>
+      <div className="space-y-3">{children}</div>
+    </section>
+  );
+}
+
+function QuickMirrorEditor({
+  label,
+  mirror,
+  onChange,
+  onPrimary,
+  extraAction,
+}: {
+  label: string;
+  mirror: DownloadMirror;
+  onChange: (value: string) => void;
+  onPrimary: () => void;
+  extraAction?: ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 p-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+          <Cloud size={15} />
+          {label}
+        </div>
+        <span
+          className={`rounded-full px-2 py-1 text-xs font-semibold ${
+            mirror.enabled && mirror.url.trim() ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-500'
+          }`}
+        >
+          {mirror.enabled && mirror.url.trim() ? 'Shown' : 'Hidden'}
+        </span>
+      </div>
+      <TextField label={`${label} share link`} value={mirror.url} onChange={onChange} />
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <button type="button" className="editor-button justify-center" onClick={() => onChange(mirror.url)}>
+          <ExternalLink size={16} />
+          Show as mirror
+        </button>
+        <button
+          type="button"
+          className="editor-button justify-center"
+          disabled={!mirror.url.trim()}
+          onClick={onPrimary}
+        >
+          <HardDriveDownload size={16} />
+          Make main download
+        </button>
+        {extraAction}
+      </div>
+    </div>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  multiline?: boolean;
+}) {
+  return (
+    <label className="editor-label">
+      {label}
+      {multiline ? (
+        <textarea className="editor-input min-h-24 resize-y" value={value} onChange={(event) => onChange(event.currentTarget.value)} />
+      ) : (
+        <input className="editor-input" type="text" value={value} onChange={(event) => onChange(event.currentTarget.value)} />
+      )}
+    </label>
+  );
+}
+
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="editor-label">
+      {label}
+      <span className="flex gap-2">
+        <input
+          className="h-11 w-14 rounded-md border border-gray-300 bg-white p-1"
+          type="color"
+          value={value}
+          onChange={(event) => onChange(event.currentTarget.value)}
+        />
+        <input className="editor-input" type="text" value={value} onChange={(event) => onChange(event.currentTarget.value)} />
+      </span>
+    </label>
+  );
+}
+
+function ImageUploadButton({ label, onUpload }: { label: string; onUpload: (file: File) => void }) {
+  return (
+    <label className="editor-button cursor-pointer justify-center">
+      <Image size={16} />
+      {label}
+      <input
+        className="sr-only"
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        onChange={(event: ChangeEvent<HTMLInputElement>) => {
+          const file = event.currentTarget.files?.[0];
+          if (file) {
+            void onUpload(file);
+          }
+          event.currentTarget.value = '';
+        }}
+      />
+    </label>
+  );
+}
+
 function ButtonLink({
   href,
   children,
   variant = 'primary',
+  theme,
 }: {
   href: string;
   children: ReactNode;
   variant?: 'primary' | 'secondary';
+  theme: LandingTheme;
 }) {
   const classes =
     variant === 'primary'
-      ? 'bg-gray-950 text-white shadow-soft hover:-translate-y-0.5 hover:bg-gray-800 focus-visible:outline-gray-950'
-      : 'border border-gray-300 bg-white text-gray-950 hover:-translate-y-0.5 hover:border-gray-400 hover:bg-gray-50 focus-visible:outline-gray-500';
+      ? 'shadow-soft hover:-translate-y-0.5 focus-visible:outline-gray-950'
+      : 'border hover:-translate-y-0.5 focus-visible:outline-gray-500';
 
   return (
     <a
       href={href}
+      style={
+        variant === 'primary'
+          ? { ...getAccentStyle(theme), color: theme.buttonTextColor }
+          : { ...getSurfaceStyle(theme), color: theme.textColor }
+      }
       className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-md px-5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${classes}`}
     >
       {children}
@@ -427,7 +1383,7 @@ function LocalPreflightWarning({ canEdit, installer }: { canEdit: boolean; insta
   );
 }
 
-function Header({ installer }: { installer: InstallerMeta }) {
+function Header({ installer, productMeta, theme }: { installer: InstallerMeta; productMeta: ProductMeta; theme: LandingTheme }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navLinks = [
     ['Features', '#features'],
@@ -437,17 +1393,20 @@ function Header({ installer }: { installer: InstallerMeta }) {
   ];
 
   return (
-    <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/85 backdrop-blur-xl">
+    <header
+      className="sticky top-0 z-40 border-b backdrop-blur-xl"
+      style={{ backgroundColor: `${theme.headerBackground}e6`, borderColor: theme.borderColor }}
+    >
       <nav className="container-page flex h-16 items-center justify-between">
-        <a href="#" className="flex items-center gap-2 text-sm font-semibold text-gray-950">
-          <span className="grid size-9 place-items-center rounded-md bg-gray-950 text-white shadow-sm">
+        <a href="#" className="flex items-center gap-2 text-sm font-semibold" style={{ color: theme.textColor }}>
+          <span className="grid size-9 place-items-center rounded-md text-white shadow-sm" style={getAccentStyle(theme)}>
             <TerminalSquare size={18} />
           </span>
-          {product.name}
+          {productMeta.name}
         </a>
-        <div className="hidden items-center gap-6 text-sm font-medium text-gray-600 md:flex">
+        <div className="hidden items-center gap-6 text-sm font-medium md:flex" style={{ color: theme.mutedTextColor }}>
           {navLinks.map(([label, href]) => (
-            <a className="transition hover:text-gray-950" href={href} key={href}>
+            <a className="transition hover:opacity-80" href={href} key={href}>
               {label}
             </a>
           ))}
@@ -455,14 +1414,16 @@ function Header({ installer }: { installer: InstallerMeta }) {
         <div className="flex items-center gap-2">
           <a
             href={installer.installerPath}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:px-4"
+            style={{ ...getAccentStyle(theme), color: theme.buttonTextColor }}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition brightness-100 hover:brightness-95 sm:px-4"
           >
             <ArrowDownToLine size={17} />
             <span className="hidden sm:inline">Download</span>
           </a>
           <button
             type="button"
-            className="inline-grid size-10 place-items-center rounded-md border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-50 md:hidden"
+            className="inline-grid size-10 place-items-center rounded-md border transition hover:opacity-80 md:hidden"
+            style={getSurfaceStyle(theme)}
             onClick={() => setIsMenuOpen((value) => !value)}
             aria-expanded={isMenuOpen}
             aria-label="Toggle navigation"
@@ -472,11 +1433,11 @@ function Header({ installer }: { installer: InstallerMeta }) {
         </div>
       </nav>
       {isMenuOpen ? (
-        <div className="border-t border-gray-200 bg-white md:hidden">
-          <div className="container-page grid gap-1 py-3 text-sm font-medium text-gray-700">
+        <div className="border-t md:hidden" style={{ backgroundColor: theme.headerBackground, borderColor: theme.borderColor }}>
+          <div className="container-page grid gap-1 py-3 text-sm font-medium" style={{ color: theme.mutedTextColor }}>
             {navLinks.map(([label, href]) => (
               <a
-                className="rounded-md px-2 py-3 transition hover:bg-gray-50 hover:text-gray-950"
+                className="rounded-md px-2 py-3 transition hover:opacity-80"
                 href={href}
                 key={href}
                 onClick={() => setIsMenuOpen(false)}
@@ -496,24 +1457,26 @@ function Hero({
   editMode,
   updateCopy,
   installer,
+  productMeta,
+  theme,
 }: {
   copy: EditableCopy;
   editMode: boolean;
   updateCopy: (key: CopyKey, value: string) => void;
   installer: InstallerMeta;
+  productMeta: ProductMeta;
+  theme: LandingTheme;
 }) {
   return (
-    <section className="relative overflow-hidden border-b border-gray-200 bg-[linear-gradient(135deg,#f8fafc_0%,#eefbf6_48%,#fff7ed_100%)]">
+    <section className="relative overflow-hidden border-b" style={{ ...getHeroStyle(theme), borderColor: theme.borderColor }}>
       <div className="container-page grid min-h-[calc(100vh-4rem)] items-center gap-10 py-14 lg:grid-cols-[1fr_0.92fr] lg:py-20">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-sm font-medium text-gray-700 shadow-sm">
-            <BadgeCheck size={16} className="text-emerald-600" />
-            <EditableText
-              copyKey="eyebrow"
-              copy={copy}
-              editMode={editMode}
-              updateCopy={updateCopy}
-            />
+          <div
+            className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium shadow-sm"
+            style={getSurfaceStyle(theme)}
+          >
+            <BadgeCheck size={16} style={{ color: theme.accentColor }} />
+            <EditableText copyKey="eyebrow" copy={copy} editMode={editMode} updateCopy={updateCopy} />
           </div>
           <EditableText
             as="h1"
@@ -522,6 +1485,7 @@ function Hero({
             editMode={editMode}
             updateCopy={updateCopy}
             className="mt-6 block max-w-3xl text-5xl font-semibold tracking-normal text-gray-950 sm:text-6xl lg:text-7xl"
+            style={{ color: theme.textColor }}
           />
           <EditableText
             as="p"
@@ -530,41 +1494,42 @@ function Hero({
             editMode={editMode}
             updateCopy={updateCopy}
             className="mt-6 block max-w-2xl text-lg leading-8 text-gray-600"
+            style={{ color: theme.mutedTextColor }}
           />
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <ButtonLink href={installer.installerPath}>
+            <ButtonLink href={installer.installerPath} theme={theme}>
               <HardDriveDownload size={19} />
               Download Installer
             </ButtonLink>
-            <ButtonLink href="#features" variant="secondary">
+            <ButtonLink href="#features" variant="secondary" theme={theme}>
               View Features
               <ChevronRight size={18} />
             </ButtonLink>
           </div>
-          <dl className="mt-8 grid max-w-2xl grid-cols-1 gap-3 text-sm text-gray-600 sm:grid-cols-3">
+          <dl className="mt-8 grid max-w-2xl grid-cols-1 gap-3 text-sm sm:grid-cols-3" style={{ color: theme.mutedTextColor }}>
             {[
-              ['Latest version', product.version],
-              ['Windows support', product.windowsSupport],
+              ['Latest version', productMeta.version],
+              ['Windows support', productMeta.windowsSupport],
               ['File size', installer.fileSize],
             ].map(([label, value]) => (
-              <div className="rounded-lg border border-white/70 bg-white/75 p-4 shadow-sm backdrop-blur" key={label}>
-                <dt className="font-medium text-gray-950">{label}</dt>
+              <div className="rounded-lg border p-4 shadow-sm backdrop-blur" style={getSurfaceStyle(theme)} key={label}>
+                <dt className="font-medium" style={{ color: theme.textColor }}>{label}</dt>
                 <dd className="mt-1">{value}</dd>
               </div>
             ))}
           </dl>
         </div>
-        <ProductVisual compact />
+        <ProductVisual productMeta={productMeta} compact />
       </div>
     </section>
   );
 }
 
-function ProductVisual({ compact = false }: { compact?: boolean }) {
+function ProductVisual({ productMeta, compact = false }: { productMeta: ProductMeta; compact?: boolean }) {
   const [showScreenshot, setShowScreenshot] = useState(true);
 
   if (!showScreenshot) {
-    return <DesktopMockup compact={compact} />;
+    return <DesktopMockup productMeta={productMeta} compact={compact} />;
   }
 
   return (
@@ -573,12 +1538,12 @@ function ProductVisual({ compact = false }: { compact?: boolean }) {
         <span className="size-3 rounded-full bg-red-400" />
         <span className="size-3 rounded-full bg-amber-400" />
         <span className="size-3 rounded-full bg-emerald-400" />
-        <span className="ml-3 truncate text-xs text-gray-300">{product.name} Preview</span>
+        <span className="ml-3 truncate text-xs text-gray-300">{productMeta.name} Preview</span>
       </div>
       <div className={`overflow-hidden rounded-b-lg bg-gray-900 ${compact ? 'min-h-[340px]' : 'min-h-[430px]'}`}>
         <img
-          src={product.screenshotPath}
-          alt={`${product.name} application screenshot`}
+          src={productMeta.screenshotPath}
+          alt={`${productMeta.name} application screenshot`}
           className={`${compact ? 'min-h-[340px]' : 'min-h-[430px]'} h-full w-full object-cover object-top`}
           onError={() => setShowScreenshot(false)}
         />
@@ -587,14 +1552,14 @@ function ProductVisual({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function DesktopMockup({ compact = false }: { compact?: boolean }) {
+function DesktopMockup({ productMeta, compact = false }: { productMeta: ProductMeta; compact?: boolean }) {
   return (
     <div className="rounded-xl border border-gray-300 bg-gray-950 p-2 shadow-soft">
       <div className="flex h-9 items-center gap-2 border-b border-gray-800 px-3">
         <span className="size-3 rounded-full bg-red-400" />
         <span className="size-3 rounded-full bg-amber-400" />
         <span className="size-3 rounded-full bg-emerald-400" />
-        <span className="ml-3 truncate text-xs text-gray-300">{product.name} Dashboard</span>
+        <span className="ml-3 truncate text-xs text-gray-300">{productMeta.name} Dashboard</span>
       </div>
       <div className={`grid gap-3 rounded-b-lg bg-gray-900 p-3 ${compact ? 'min-h-[340px]' : 'min-h-[430px]'}`}>
         <div className="grid grid-cols-[0.35fr_1fr] gap-3">
@@ -616,9 +1581,7 @@ function DesktopMockup({ compact = false }: { compact?: boolean }) {
                 <div className="h-3 w-28 rounded bg-gray-300" />
                 <div className="mt-3 h-6 w-44 rounded bg-gray-900" />
               </div>
-              <div className="rounded-md bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-800">
-                Ready
-              </div>
+              <div className="rounded-md bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-800">Ready</div>
             </div>
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
               {[72, 48, 88].map((width) => (
@@ -648,17 +1611,23 @@ function Preview({
   copy,
   editMode,
   updateCopy,
+  productMeta,
+  theme,
 }: {
   copy: EditableCopy;
   editMode: boolean;
   updateCopy: (key: CopyKey, value: string) => void;
+  productMeta: ProductMeta;
+  theme: LandingTheme;
 }) {
   return (
-    <section id="preview" className="bg-slate-50 py-20">
+    <section id="preview" className={sectionPadding(theme)} style={getSectionStyle(theme, true)}>
       <div className="container-page">
         <div className="grid items-center gap-10 lg:grid-cols-[0.95fr_1fr]">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wider text-emerald-700">Product preview</p>
+            <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: theme.accentColor }}>
+              Product preview
+            </p>
             <EditableText
               as="h2"
               copyKey="previewTitle"
@@ -666,6 +1635,7 @@ function Preview({
               editMode={editMode}
               updateCopy={updateCopy}
               className="section-title mt-3 block"
+              style={{ color: theme.textColor }}
             />
             <EditableText
               as="p"
@@ -674,19 +1644,20 @@ function Preview({
               editMode={editMode}
               updateCopy={updateCopy}
               className="section-copy block"
+              style={{ color: theme.mutedTextColor }}
             />
-            <div className="mt-6 grid gap-3 text-sm text-gray-700 sm:grid-cols-2">
+            <div className="mt-6 grid gap-3 text-sm sm:grid-cols-2" style={{ color: theme.textColor }}>
               {['Task-focused dashboard', 'Readable status panels', 'Installer-ready download path', 'Responsive screenshot layout'].map(
                 (item) => (
-                  <div className="flex items-center gap-2 rounded-md bg-white p-3 shadow-sm" key={item}>
-                    <Check size={17} className="text-emerald-600" />
+                  <div className="flex items-center gap-2 rounded-md p-3 shadow-sm" style={getSurfaceStyle(theme)} key={item}>
+                    <Check size={17} style={{ color: theme.accentColor }} />
                     {item}
                   </div>
                 ),
               )}
             </div>
           </div>
-          <ProductVisual />
+          <ProductVisual productMeta={productMeta} />
         </div>
       </div>
     </section>
@@ -697,16 +1668,20 @@ function Features({
   copy,
   editMode,
   updateCopy,
+  theme,
 }: {
   copy: EditableCopy;
   editMode: boolean;
   updateCopy: (key: CopyKey, value: string) => void;
+  theme: LandingTheme;
 }) {
   return (
-    <section id="features" className="bg-white py-20">
+    <section id="features" className={sectionPadding(theme)} style={getSectionStyle(theme)}>
       <div className="container-page">
         <div className="max-w-3xl">
-          <p className="text-sm font-semibold uppercase tracking-wider text-emerald-700">Features</p>
+          <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: theme.accentColor }}>
+            Features
+          </p>
           <EditableText
             as="h2"
             copyKey="featuresTitle"
@@ -714,6 +1689,7 @@ function Features({
             editMode={editMode}
             updateCopy={updateCopy}
             className="section-title mt-3 block"
+            style={{ color: theme.textColor }}
           />
           <EditableText
             as="p"
@@ -722,21 +1698,42 @@ function Features({
             editMode={editMode}
             updateCopy={updateCopy}
             className="section-copy block"
+            style={{ color: theme.mutedTextColor }}
           />
         </div>
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => {
+          {featureCards.map((feature) => {
             const Icon = feature.icon;
             return (
               <article
-                className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-soft"
-                key={feature.title}
+                className="rounded-xl border p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-soft"
+                style={getSurfaceStyle(theme)}
+                key={feature.titleKey}
               >
-                <div className="grid size-11 place-items-center rounded-lg bg-emerald-50 text-emerald-700">
+                <div
+                  className="grid size-11 place-items-center rounded-lg"
+                  style={{ backgroundColor: theme.subtleSurfaceColor, color: theme.accentColor }}
+                >
                   <Icon size={22} />
                 </div>
-                <h3 className="mt-5 text-lg font-semibold text-gray-950">{feature.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-gray-600">{feature.text}</p>
+                <EditableText
+                  as="h3"
+                  copyKey={feature.titleKey}
+                  copy={copy}
+                  editMode={editMode}
+                  updateCopy={updateCopy}
+                  className="mt-5 block text-lg font-semibold text-gray-950"
+                  style={{ color: theme.textColor }}
+                />
+                <EditableText
+                  as="p"
+                  copyKey={feature.textKey}
+                  copy={copy}
+                  editMode={editMode}
+                  updateCopy={updateCopy}
+                  className="mt-3 block text-sm leading-6 text-gray-600"
+                  style={{ color: theme.mutedTextColor }}
+                />
               </article>
             );
           })}
@@ -751,14 +1748,24 @@ function DownloadPanel({
   editMode,
   updateCopy,
   installer,
+  productMeta,
+  theme,
 }: {
   copy: EditableCopy;
   editMode: boolean;
   updateCopy: (key: CopyKey, value: string) => void;
   installer: InstallerMeta;
+  productMeta: ProductMeta;
+  theme: LandingTheme;
 }) {
+  const activeMirrors = getInstallerMirrors(installer).filter((mirror) => mirror.enabled && mirror.url.trim());
+
   return (
-    <section id="download" className="bg-gray-950 py-20 text-white">
+    <section
+      id="download"
+      className={sectionPadding(theme)}
+      style={{ backgroundColor: theme.downloadBackground, color: theme.downloadTextColor }}
+    >
       <div className="container-page grid gap-8 lg:grid-cols-[1fr_0.8fr] lg:items-center">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wider text-emerald-300">Download</p>
@@ -777,71 +1784,114 @@ function DownloadPanel({
             editMode={editMode}
             updateCopy={updateCopy}
             className="mt-4 block max-w-2xl text-base leading-7 text-gray-300"
+            style={{ color: theme.mutedTextColor }}
           />
         </div>
-        <div className="rounded-xl border border-white/10 bg-white/5 p-6 shadow-soft">
+        <div className="rounded-xl border p-6 shadow-soft" style={getSubtleSurfaceStyle(theme)}>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-xl font-semibold">{product.name} Setup</h3>
+              <h3 className="text-xl font-semibold">{productMeta.name} Setup</h3>
               <p className="mt-1 text-sm text-gray-300">
-                {product.version} for {product.windowsSupport}
+                {productMeta.version} for {productMeta.windowsSupport}
               </p>
             </div>
             <FileText className="text-emerald-300" size={28} />
           </div>
           <dl className="mt-6 grid gap-3 text-sm">
-            <div className="flex justify-between gap-4 border-t border-white/10 pt-3">
-              <dt className="text-gray-400">File</dt>
-              <dd className="text-right font-medium">{installer.fileName}</dd>
-            </div>
-            <div className="flex justify-between gap-4 border-t border-white/10 pt-3">
-              <dt className="text-gray-400">Size</dt>
-              <dd className="font-medium">{installer.fileSize}</dd>
-            </div>
-            <div className="flex justify-between gap-4 border-t border-white/10 pt-3">
-              <dt className="text-gray-400">Released</dt>
-              <dd className="font-medium">{product.releaseDate}</dd>
-            </div>
-            <div className="flex justify-between gap-4 border-t border-white/10 pt-3">
-              <dt className="text-gray-400">Publisher</dt>
-              <dd className="text-right font-medium">{product.publisher}</dd>
-            </div>
-            <div className="border-t border-white/10 pt-3">
-              <dt className="text-gray-400">SHA-256</dt>
+            <MetaRow label="File" value={installer.fileName} theme={theme} />
+            <MetaRow label="Size" value={installer.fileSize} theme={theme} />
+            <MetaRow label="Released" value={productMeta.releaseDate} theme={theme} />
+            <MetaRow label="Publisher" value={productMeta.publisher} theme={theme} />
+            <div className="border-t pt-3" style={{ borderColor: theme.borderColor }}>
+              <dt style={{ color: theme.mutedTextColor }}>SHA-256</dt>
               <dd className="mt-1 break-all font-mono text-xs font-medium text-gray-200">{installer.checksum}</dd>
             </div>
           </dl>
           <a
             href={installer.installerPath}
-            className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-emerald-400 px-5 text-sm font-semibold text-gray-950 transition hover:bg-emerald-300"
+            style={{ backgroundColor: theme.accentColor, color: theme.buttonTextColor }}
+            className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md px-5 text-sm font-semibold transition brightness-100 hover:brightness-95"
           >
             <HardDriveDownload size={19} />
             Download .exe
           </a>
+          {activeMirrors.length > 0 ? (
+            <div className="mt-4 border-t pt-4" style={{ borderColor: theme.borderColor }}>
+              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: theme.mutedTextColor }}>
+                External drive options
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {activeMirrors.map((mirror) => (
+                  <a
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition hover:opacity-80"
+                    style={getSurfaceStyle(theme)}
+                    href={mirror.url}
+                    key={mirror.id}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <Cloud size={16} />
+                    {mirror.label}
+                    <ExternalLink size={14} />
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </section>
   );
 }
 
-function TrustSections({ installer }: { installer: InstallerMeta }) {
+function MetaRow({ label, value, theme }: { label: string; value: string; theme: LandingTheme }) {
   return (
-    <section className="bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] py-20">
+    <div className="flex justify-between gap-4 border-t pt-3" style={{ borderColor: theme.borderColor }}>
+      <dt style={{ color: theme.mutedTextColor }}>{label}</dt>
+      <dd className="text-right font-medium">{value}</dd>
+    </div>
+  );
+}
+
+function TrustSections({
+  installer,
+  productMeta,
+  copy,
+  editMode,
+  updateCopy,
+  theme,
+}: {
+  installer: InstallerMeta;
+  productMeta: ProductMeta;
+  copy: EditableCopy;
+  editMode: boolean;
+  updateCopy: (key: CopyKey, value: string) => void;
+  theme: LandingTheme;
+}) {
+  return (
+    <section className={sectionPadding(theme)} style={getSectionStyle(theme, true)}>
       <div className="container-page grid gap-10 lg:grid-cols-2">
         <div id="changelog">
           <div className="flex items-center gap-3">
-            <Clock3 className="text-emerald-700" />
-            <h2 className="text-2xl font-semibold text-gray-950">Changelog</h2>
+            <Clock3 style={{ color: theme.accentColor }} />
+            <h2 className="text-2xl font-semibold" style={{ color: theme.textColor }}>Changelog</h2>
           </div>
-          <div className="mt-5 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold text-gray-950">
-              {product.version} - {product.releaseDate}
+          <div className="mt-5 rounded-xl border p-6 shadow-sm" style={getSurfaceStyle(theme)}>
+            <p className="text-sm font-semibold" style={{ color: theme.textColor }}>
+              {productMeta.version} - {productMeta.releaseDate}
             </p>
-            <ul className="mt-4 space-y-3 text-sm leading-6 text-gray-700">
-              {changelog.map((item) => (
-                <li className="flex gap-3" key={item}>
-                  <Sparkles className="mt-0.5 shrink-0 text-emerald-600" size={17} />
-                  <span>{item}</span>
+            <ul className="mt-4 space-y-3 text-sm leading-6" style={{ color: theme.mutedTextColor }}>
+              {changelogKeys.map((key) => (
+                <li className="flex gap-3" key={key}>
+                  <Sparkles className="mt-0.5 shrink-0" style={{ color: theme.accentColor }} size={17} />
+                  <EditableText
+                    as="span"
+                    copyKey={key}
+                    copy={copy}
+                    editMode={editMode}
+                    updateCopy={updateCopy}
+                    className="block"
+                  />
                 </li>
               ))}
             </ul>
@@ -849,25 +1899,25 @@ function TrustSections({ installer }: { installer: InstallerMeta }) {
         </div>
         <div id="security">
           <div className="flex items-center gap-3">
-            <LockKeyhole className="text-emerald-700" />
-            <h2 className="text-2xl font-semibold text-gray-950">Security Notes</h2>
+            <LockKeyhole style={{ color: theme.accentColor }} />
+            <h2 className="text-2xl font-semibold" style={{ color: theme.textColor }}>Security Notes</h2>
           </div>
-          <div className="mt-5 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <ul className="space-y-4 text-sm leading-6 text-gray-700">
+          <div className="mt-5 rounded-xl border p-6 shadow-sm" style={getSurfaceStyle(theme)}>
+            <ul className="space-y-4 text-sm leading-6" style={{ color: theme.mutedTextColor }}>
               <li className="flex gap-3">
-                <ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" size={18} />
-                <span>Publisher: {product.publisher}</span>
+                <ShieldCheck className="mt-0.5 shrink-0" style={{ color: theme.accentColor }} size={18} />
+                <span>Publisher: {productMeta.publisher}</span>
               </li>
               <li className="flex gap-3">
-                <ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" size={18} />
+                <ShieldCheck className="mt-0.5 shrink-0" style={{ color: theme.accentColor }} size={18} />
                 <span className="break-all">SHA-256: {installer.checksum}</span>
               </li>
               <li className="flex gap-3">
-                <ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" size={18} />
+                <ShieldCheck className="mt-0.5 shrink-0" style={{ color: theme.accentColor }} size={18} />
                 <span>
                   Support and vulnerability contact:{' '}
-                  <a className="font-semibold text-gray-950 hover:text-emerald-700" href={`mailto:${product.supportEmail}`}>
-                    {product.supportEmail}
+                  <a className="font-semibold hover:underline" style={{ color: theme.textColor }} href={`mailto:${productMeta.supportEmail}`}>
+                    {productMeta.supportEmail}
                   </a>
                 </span>
               </li>
@@ -879,19 +1929,22 @@ function TrustSections({ installer }: { installer: InstallerMeta }) {
   );
 }
 
-function Footer() {
+function Footer({ productMeta, theme }: { productMeta: ProductMeta; theme: LandingTheme }) {
   return (
-    <footer className="border-t border-gray-200 bg-slate-50 py-8">
-      <div className="container-page flex flex-col gap-4 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between">
-        <p>Copyright 2026 {product.name}. Replace with your company details.</p>
+    <footer className="border-t py-8" style={{ backgroundColor: theme.pageBackground, borderColor: theme.borderColor }}>
+      <div
+        className="container-page flex flex-col gap-4 text-sm sm:flex-row sm:items-center sm:justify-between"
+        style={{ color: theme.mutedTextColor }}
+      >
+        <p>Copyright 2026 {productMeta.name}. Replace with your company details.</p>
         <div className="flex gap-5">
-          <a className="hover:text-gray-950" href="#download">
+          <a className="hover:opacity-80" href="#download">
             Download
           </a>
-          <a className="hover:text-gray-950" href="#security">
+          <a className="hover:opacity-80" href="#security">
             Security
           </a>
-          <a className="hover:text-gray-950" href={`mailto:${product.supportEmail}`}>
+          <a className="hover:opacity-80" href={`mailto:${productMeta.supportEmail}`}>
             Support
           </a>
         </div>
@@ -901,28 +1954,90 @@ function Footer() {
 }
 
 export function App() {
-  const { canEdit, copy, editMode, setEditMode, updateCopy, resetCopy } = useEditableCopy();
-  const { installer, updateInstaller, resetInstaller } = useInstallerMeta(canEdit);
+  const { canEdit, copyConfig, editMode, setEditMode, updateCopy } = useEditableCopy();
+  const productConfig = useLocalConfig<ProductMeta>(canEdit, productStorageKey, defaultProductMeta);
+  const installerConfig = useInstallerMeta(canEdit);
+  const themeConfig = useLocalConfig<LandingTheme>(canEdit, themeStorageKey, defaultTheme);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const copy = copyConfig.value;
+  const productMeta = productConfig.value;
+  const installer = installerConfig.value;
+  const theme = themeConfig.value;
+  const hasChanges =
+    copyConfig.hasChanges || productConfig.hasChanges || installerConfig.hasChanges || themeConfig.hasChanges;
+  const saveState: SaveState =
+    copyConfig.saveState === 'saving' ||
+    productConfig.saveState === 'saving' ||
+    installerConfig.saveState === 'saving' ||
+    themeConfig.saveState === 'saving'
+      ? 'saving'
+      : 'saved';
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen" style={{ backgroundColor: theme.pageBackground, color: theme.textColor }}>
       <LocalPreflightWarning canEdit={canEdit} installer={installer} />
-      <Header installer={installer} />
+      <Header installer={installer} productMeta={productMeta} theme={theme} />
       <main>
-        <Hero copy={copy} editMode={editMode} updateCopy={updateCopy} installer={installer} />
-        <Preview copy={copy} editMode={editMode} updateCopy={updateCopy} />
-        <Features copy={copy} editMode={editMode} updateCopy={updateCopy} />
-        <DownloadPanel copy={copy} editMode={editMode} updateCopy={updateCopy} installer={installer} />
-        <TrustSections installer={installer} />
+        <Hero
+          copy={copy}
+          editMode={editMode}
+          updateCopy={updateCopy}
+          installer={installer}
+          productMeta={productMeta}
+          theme={theme}
+        />
+        <Preview copy={copy} editMode={editMode} updateCopy={updateCopy} productMeta={productMeta} theme={theme} />
+        <Features copy={copy} editMode={editMode} updateCopy={updateCopy} theme={theme} />
+        <DownloadPanel
+          copy={copy}
+          editMode={editMode}
+          updateCopy={updateCopy}
+          installer={installer}
+          productMeta={productMeta}
+          theme={theme}
+        />
+        <TrustSections
+          installer={installer}
+          productMeta={productMeta}
+          copy={copy}
+          editMode={editMode}
+          updateCopy={updateCopy}
+          theme={theme}
+        />
       </main>
-      <Footer />
+      <Footer productMeta={productMeta} theme={theme} />
       <EditorToolbar
         canEdit={canEdit}
         editMode={editMode}
         setEditMode={setEditMode}
-        resetCopy={resetCopy}
-        resetInstaller={resetInstaller}
-        updateInstaller={updateInstaller}
+        isDrawerOpen={isDrawerOpen}
+        setIsDrawerOpen={setIsDrawerOpen}
+        installer={installer}
+        updateInstaller={installerConfig.replaceValue}
+        saveState={saveState}
+        hasChanges={hasChanges}
+      />
+      <EditorDrawer
+        canEdit={canEdit}
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        copy={copy}
+        updateCopy={updateCopy}
+        replaceCopy={copyConfig.replaceValue}
+        resetCopy={copyConfig.resetValue}
+        productMeta={productMeta}
+        updateProductMeta={productConfig.patchValue}
+        replaceProductMeta={productConfig.replaceValue}
+        resetProductMeta={productConfig.resetValue}
+        installer={installer}
+        updateInstaller={installerConfig.patchValue}
+        replaceInstaller={installerConfig.replaceValue}
+        resetInstaller={installerConfig.resetValue}
+        theme={theme}
+        updateTheme={themeConfig.patchValue}
+        replaceTheme={themeConfig.replaceValue}
+        resetTheme={themeConfig.resetValue}
       />
     </div>
   );
