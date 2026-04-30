@@ -189,6 +189,8 @@ type DownloadMirror = {
   enabled: boolean;
 };
 type SaveState = 'saved' | 'saving';
+type LinkStatus = 'unchecked' | 'checking' | 'reachable' | 'blocked' | 'missing';
+type PrimaryHost = 'local' | 'github-releases' | 'google-drive' | 'onedrive' | 'custom';
 
 const copyStorageKey = 'myapp-landing-copy';
 const productStorageKey = 'myapp-product-meta';
@@ -205,6 +207,103 @@ const featureCards: Array<{ icon: ElementType; titleKey: CopyKey; textKey: CopyK
 ];
 
 const changelogKeys: CopyKey[] = ['changelogOne', 'changelogTwo', 'changelogThree'];
+
+const themePresets: Array<{ label: string; value: LandingTheme }> = [
+  { label: 'Dark', value: defaultTheme },
+  {
+    label: 'Light',
+    value: {
+      ...defaultTheme,
+      backgroundColor: '#f8fafc',
+      gradientStart: '#f8fafc',
+      gradientEnd: '#dff7ec',
+      patternColor: '#d1fae5',
+      pageBackground: '#f8fafc',
+      sectionBackground: '#ffffff',
+      alternateSectionBackground: '#f1f5f9',
+      surfaceColor: '#ffffff',
+      subtleSurfaceColor: '#f8fafc',
+      borderColor: '#dbe3ef',
+      textColor: '#0f172a',
+      mutedTextColor: '#526071',
+      headerBackground: '#ffffff',
+      downloadBackground: '#0f172a',
+      downloadTextColor: '#f8fafc',
+      accentColor: '#059669',
+      buttonTextColor: '#ffffff',
+      overlayOpacity: 0.15,
+    },
+  },
+  {
+    label: 'High contrast',
+    value: {
+      ...defaultTheme,
+      backgroundColor: '#000000',
+      gradientStart: '#000000',
+      gradientEnd: '#0b0b0b',
+      pageBackground: '#000000',
+      sectionBackground: '#050505',
+      alternateSectionBackground: '#111111',
+      surfaceColor: '#000000',
+      subtleSurfaceColor: '#161616',
+      borderColor: '#facc15',
+      textColor: '#ffffff',
+      mutedTextColor: '#e5e7eb',
+      headerBackground: '#000000',
+      downloadBackground: '#000000',
+      downloadTextColor: '#ffffff',
+      accentColor: '#facc15',
+      buttonTextColor: '#000000',
+    },
+  },
+  {
+    label: 'Blue',
+    value: {
+      ...defaultTheme,
+      gradientStart: '#08111f',
+      gradientEnd: '#123a5f',
+      accentColor: '#38bdf8',
+      buttonTextColor: '#031421',
+      patternColor: '#1e3a8a',
+    },
+  },
+  {
+    label: 'Green',
+    value: defaultTheme,
+  },
+  {
+    label: 'Neutral',
+    value: {
+      ...defaultTheme,
+      gradientStart: '#111827',
+      gradientEnd: '#27272a',
+      pageBackground: '#0a0a0a',
+      sectionBackground: '#18181b',
+      alternateSectionBackground: '#111113',
+      surfaceColor: '#202024',
+      subtleSurfaceColor: '#151518',
+      borderColor: '#3f3f46',
+      accentColor: '#e5e7eb',
+      buttonTextColor: '#111827',
+    },
+  },
+  {
+    label: 'Product launch',
+    value: {
+      ...defaultTheme,
+      gradientStart: '#0f1028',
+      gradientEnd: '#3d1b57',
+      sectionBackground: '#111827',
+      alternateSectionBackground: '#17152c',
+      surfaceColor: '#1f2937',
+      subtleSurfaceColor: '#181a32',
+      borderColor: '#3b315f',
+      accentColor: '#f97316',
+      buttonTextColor: '#111827',
+      patternColor: '#6d28d9',
+    },
+  },
+];
 
 function isLocalEditingHost() {
   if (typeof window === 'undefined') {
@@ -392,6 +491,51 @@ function getGoogleDriveDirectUrl(url: string) {
   }
 
   return `https://drive.google.com/uc?export=download&id=${fileId}`;
+}
+
+function getPrimaryHost(installer: InstallerMeta): PrimaryHost {
+  const path = installer.installerPath.trim();
+  const githubUrl = getGitHubReleaseUrl(installer);
+  const googleMirror = getInstallerMirrors(installer).find((mirror) => mirror.id === 'google-drive');
+  const oneDriveMirror = getInstallerMirrors(installer).find((mirror) => mirror.id === 'onedrive');
+
+  if (path.startsWith('/downloads/')) {
+    return 'local';
+  }
+
+  if (githubUrl && path === githubUrl) {
+    return 'github-releases';
+  }
+
+  if (googleMirror?.url.trim() && path === googleMirror.url.trim()) {
+    return 'google-drive';
+  }
+
+  if (oneDriveMirror?.url.trim() && path === oneDriveMirror.url.trim()) {
+    return 'onedrive';
+  }
+
+  return 'custom';
+}
+
+async function validateDownloadUrl(url: string): Promise<LinkStatus> {
+  const trimmedUrl = url.trim();
+
+  if (!trimmedUrl) {
+    return 'missing';
+  }
+
+  try {
+    const response = await fetch(trimmedUrl, { method: 'HEAD', cache: 'no-store', mode: 'no-cors' });
+    return response.type === 'opaque' || response.ok ? 'reachable' : 'blocked';
+  } catch {
+    try {
+      const response = await fetch(trimmedUrl, { method: 'GET', cache: 'no-store', mode: 'no-cors' });
+      return response.type === 'opaque' || response.ok ? 'reachable' : 'blocked';
+    } catch {
+      return 'blocked';
+    }
+  }
 }
 
 async function uploadLocalFile(file: File, endpoint: string) {
@@ -601,6 +745,8 @@ function EditorDrawer({
 }) {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [uploadMessage, setUploadMessage] = useState('Upload background or screenshot images to /public/screenshots.');
+  const [linkStatuses, setLinkStatuses] = useState<Record<string, LinkStatus>>({});
+  const [isValidatingLinks, setIsValidatingLinks] = useState(false);
 
   if (!canEdit) {
     return null;
@@ -679,6 +825,44 @@ function EditorDrawer({
     if (mirror.url.trim()) {
       updateInstaller({ installerPath: mirror.url.trim() });
     }
+  }
+
+  function setPrimaryHost(host: PrimaryHost) {
+    if (host === 'local') {
+      updateInstaller({ installerPath: `/downloads/${installer.fileName || product.fileName}` });
+      return;
+    }
+
+    if (host === 'github-releases') {
+      applyGitHubReleaseUrl(true);
+      return;
+    }
+
+    if (host === 'google-drive' || host === 'onedrive') {
+      useMirrorAsPrimary(host);
+    }
+  }
+
+  async function validateLinks() {
+    const links = [
+      { id: 'primary', url: installer.installerPath },
+      { id: 'github-releases', url: getGitHubReleaseUrl(installer) || getMirror('github-releases').url },
+      { id: 'google-drive', url: googleDriveMirror.url },
+      { id: 'onedrive', url: oneDriveMirror.url },
+    ];
+
+    setIsValidatingLinks(true);
+    setLinkStatuses((current) => ({
+      ...current,
+      ...Object.fromEntries(links.map((link) => [link.id, 'checking' as LinkStatus])),
+    }));
+
+    const entries = await Promise.all(
+      links.map(async (link) => [link.id, await validateDownloadUrl(link.url)] as const),
+    );
+
+    setLinkStatuses((current) => ({ ...current, ...Object.fromEntries(entries) }));
+    setIsValidatingLinks(false);
   }
 
   function applyGitHubReleaseUrl(useAsPrimary = false) {
@@ -775,6 +959,34 @@ function EditorDrawer({
                 Paste a hosted installer link, then choose whether it is a mirror or the main download button.
               </p>
             </div>
+            <div className="grid gap-3 rounded-lg border border-gray-200 p-3">
+              <label className="editor-label">
+                Primary host
+                <select
+                  className="editor-input"
+                  value={getPrimaryHost(installer)}
+                  onChange={(event) => setPrimaryHost(event.currentTarget.value as PrimaryHost)}
+                >
+                  <option value="local">Local uploaded file</option>
+                  <option value="github-releases">GitHub Releases</option>
+                  <option value="google-drive">Google Drive</option>
+                  <option value="onedrive">OneDrive</option>
+                  <option value="custom">Custom URL</option>
+                </select>
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <LinkStatusBadge label="Primary" status={linkStatuses.primary ?? 'unchecked'} />
+                <button
+                  type="button"
+                  className="editor-button"
+                  onClick={() => void validateLinks()}
+                  disabled={isValidatingLinks}
+                >
+                  {isValidatingLinks ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />}
+                  Validate links
+                </button>
+              </div>
+            </div>
             <TextField
               label="Current main download URL"
               value={installer.installerPath}
@@ -818,11 +1030,15 @@ function EditorDrawer({
                   Make main download
                 </button>
               </div>
+              <div className="mt-3">
+                <LinkStatusBadge label="GitHub" status={linkStatuses['github-releases'] ?? 'unchecked'} />
+              </div>
             </div>
 
             <QuickMirrorEditor
               label="Google Drive"
               mirror={googleDriveMirror}
+              status={linkStatuses['google-drive'] ?? 'unchecked'}
               onChange={(value) => updateDistributionLink('google-drive', value)}
               onPrimary={() => useMirrorAsPrimary('google-drive')}
               extraAction={
@@ -842,6 +1058,7 @@ function EditorDrawer({
             <QuickMirrorEditor
               label="OneDrive"
               mirror={oneDriveMirror}
+              status={linkStatuses.onedrive ?? 'unchecked'}
               onChange={(value) => updateDistributionLink('onedrive', value)}
               onPrimary={() => useMirrorAsPrimary('onedrive')}
             />
@@ -1052,6 +1269,22 @@ function EditorDrawer({
           </EditorSection>
 
           <EditorSection title="Background and style" icon={Palette}>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {themePresets.map((preset) => (
+                <button
+                  type="button"
+                  className="editor-button justify-between"
+                  key={preset.label}
+                  onClick={() => replaceTheme(preset.value)}
+                >
+                  <span>{preset.label}</span>
+                  <span
+                    className="size-5 rounded-full border border-gray-300"
+                    style={{ backgroundColor: preset.value.accentColor }}
+                  />
+                </button>
+              ))}
+            </div>
             <label className="editor-label">
               Background type
               <select
@@ -1200,12 +1433,14 @@ function EditorSection({ title, icon: Icon, children }: { title: string; icon: E
 function QuickMirrorEditor({
   label,
   mirror,
+  status,
   onChange,
   onPrimary,
   extraAction,
 }: {
   label: string;
   mirror: DownloadMirror;
+  status: LinkStatus;
   onChange: (value: string) => void;
   onPrimary: () => void;
   extraAction?: ReactNode;
@@ -1226,6 +1461,9 @@ function QuickMirrorEditor({
         </span>
       </div>
       <TextField label={`${label} share link`} value={mirror.url} onChange={onChange} />
+      <div className="mt-3">
+        <LinkStatusBadge label={label} status={status} />
+      </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <button type="button" className="editor-button justify-center" onClick={() => onChange(mirror.url)}>
           <ExternalLink size={16} />
@@ -1243,6 +1481,30 @@ function QuickMirrorEditor({
         {extraAction}
       </div>
     </div>
+  );
+}
+
+function LinkStatusBadge({ label, status }: { label: string; status: LinkStatus }) {
+  const styles: Record<LinkStatus, string> = {
+    unchecked: 'bg-gray-100 text-gray-500',
+    checking: 'bg-blue-100 text-blue-800',
+    reachable: 'bg-emerald-100 text-emerald-800',
+    blocked: 'bg-amber-100 text-amber-800',
+    missing: 'bg-rose-100 text-rose-800',
+  };
+  const text: Record<LinkStatus, string> = {
+    unchecked: 'Not checked',
+    checking: 'Checking',
+    reachable: 'Reachable',
+    blocked: 'Blocked or unknown',
+    missing: 'Missing URL',
+  };
+
+  return (
+    <span className={`inline-flex min-h-7 items-center gap-2 rounded-full px-3 text-xs font-semibold ${styles[status]}`}>
+      {status === 'checking' ? <Loader2 size={13} className="animate-spin" /> : null}
+      {label}: {text[status]}
+    </span>
   );
 }
 
