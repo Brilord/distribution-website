@@ -1,13 +1,21 @@
-Place downloadable installer files here.
+Place downloadable app packages here.
 
-Default template download path:
+Default Windows installer path:
 
 ```txt
-/public/downloads/MyAppSetup.exe
+/public/downloads/HertPicture_0.1.0_x64-setup.exe
 ```
 
 In React markup, reference it as:
 
 ```txt
-/downloads/MyAppSetup.exe
+/downloads/HertPicture_0.1.0_x64-setup.exe
 ```
+
+Android packages can also live here, for example:
+
+```txt
+/public/downloads/MyApp.apk
+```
+
+iOS distribution should normally use an App Store or TestFlight URL instead of a local file.

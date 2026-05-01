@@ -11,6 +11,7 @@ import {
 } from 'react';
 import {
   AlertTriangle,
+  Apple,
   ArrowDownToLine,
   BadgeCheck,
   Check,
@@ -36,6 +37,7 @@ import {
   ScanSearch,
   ShieldCheck,
   Sparkles,
+  Smartphone,
   TerminalSquare,
   Upload,
   UploadCloud,
@@ -47,31 +49,32 @@ import {
 const product = {
   name: 'MyApp',
   version: 'v2.4.1',
-  fileSize: '86 MB',
-  fileName: 'MyAppSetup.exe',
+  fileSize: '2.3 MB',
+  fileName: 'HertPicture_0.1.0_x64-setup.exe',
   windowsSupport: 'Windows 10 and 11',
-  installerPath: '/downloads/MyAppSetup.exe',
-  checksum: 'Upload or publish an installer to generate the SHA-256 checksum.',
+  installerPath: '/downloads/HertPicture_0.1.0_x64-setup.exe',
+  checksum: '4b9e2791aacd9e0112b5dc50f44a8a6ffb9a914f8a912a72d42064e4894b5d5f',
   releaseDate: 'April 28, 2026',
   publisher: 'Replace with your code-signing publisher',
   supportEmail: 'support@myapp.example',
   screenshotPath: '/screenshots/main-preview.png',
+  githubUrl: 'https://github.com/Brilord/distribution-website',
 };
 
 const defaultCopy = {
   eyebrow: `Latest release ${product.version}`,
-  heroTitle: `Download ${product.name} for Windows`,
+  heroTitle: `Download ${product.name} for Windows, Android, and iOS`,
   heroDescription:
-    'A polished software distribution template for presenting your Windows app, explaining its value, and giving users a direct path to the latest .exe installer.',
+    'A polished software distribution template for presenting your app, explaining its value, and giving users a direct path to the latest desktop and mobile releases.',
   previewTitle: 'Show the desktop app before users download it.',
   previewDescription:
     'Use the built-in desktop mockup while preparing your real product screenshots, then swap in assets from /public/screenshots/main-preview.png.',
-  featuresTitle: 'Everything a Windows product page needs.',
+  featuresTitle: 'Everything a cross-platform product page needs.',
   featuresDescription:
     'Clear feature messaging, install details, release metadata, and user reassurance are all built into the template.',
-  downloadTitle: 'Get the latest Windows installer.',
+  downloadTitle: 'Get the latest release for your device.',
   downloadDescription:
-    'Point the download button to your signed .exe installer. Keep version, file size, and checksum visible so users know exactly what they are installing.',
+    'Point each platform button to your signed Windows installer, Android package, or iOS App Store listing. Keep version, file size, and verification details visible.',
   featureFastTitle: 'Fast daily workflow',
   featureFastText:
     'Open, process, and export common tasks through a clean desktop interface designed for repeat use.',
@@ -101,6 +104,7 @@ const defaultProductMeta = {
   publisher: product.publisher,
   supportEmail: product.supportEmail,
   screenshotPath: product.screenshotPath,
+  githubUrl: product.githubUrl,
 };
 
 const defaultInstallerMeta = {
@@ -109,8 +113,8 @@ const defaultInstallerMeta = {
   installerPath: product.installerPath,
   checksum: product.checksum,
   sizeBytes: 0,
-  githubOwner: '',
-  githubRepo: '',
+  githubOwner: 'Brilord',
+  githubRepo: 'distribution-website',
   githubAssetName: product.fileName,
   mirrors: [
     { id: 'github-releases', label: 'GitHub Releases', url: '', enabled: false },
@@ -118,6 +122,28 @@ const defaultInstallerMeta = {
     { id: 'onedrive', label: 'OneDrive', url: '', enabled: false },
     { id: 'dropbox', label: 'Dropbox', url: '', enabled: false },
     { id: 'custom', label: 'Custom mirror', url: '', enabled: false },
+  ],
+  mobileDownloads: [
+    {
+      id: 'android' as MobilePlatform,
+      label: 'Android',
+      platformSupport: 'Android 8.0 and newer',
+      fileName: 'MyApp.apk',
+      fileSize: 'Add APK size',
+      url: '',
+      buttonLabel: 'Download APK',
+      enabled: true,
+    },
+    {
+      id: 'ios' as MobilePlatform,
+      label: 'iOS',
+      platformSupport: 'iOS 15 and newer',
+      fileName: 'App Store or TestFlight',
+      fileSize: 'Store listing',
+      url: '',
+      buttonLabel: 'Open App Store',
+      enabled: true,
+    },
   ],
 };
 
@@ -181,11 +207,23 @@ type InstallerMeta = {
   githubRepo: string;
   githubAssetName: string;
   mirrors: DownloadMirror[];
+  mobileDownloads: MobileDownload[];
 };
 type DownloadMirror = {
   id: string;
   label: string;
   url: string;
+  enabled: boolean;
+};
+type MobilePlatform = 'android' | 'ios';
+type MobileDownload = {
+  id: MobilePlatform;
+  label: string;
+  platformSupport: string;
+  fileName: string;
+  fileSize: string;
+  url: string;
+  buttonLabel: string;
   enabled: boolean;
 };
 type SaveState = 'saved' | 'saving';
@@ -468,6 +506,93 @@ function getInstallerMirrors(installer: InstallerMeta) {
   return [...mergedDefaults, ...customMirrors];
 }
 
+function getMobileDownloads(installer: InstallerMeta) {
+  const currentDownloads = installer.mobileDownloads ?? [];
+
+  return defaultInstallerMeta.mobileDownloads.map((defaultDownload) => ({
+    ...defaultDownload,
+    ...currentDownloads.find((download) => download.id === defaultDownload.id),
+  }));
+}
+
+function getPlatformDownloads(installer: InstallerMeta, productMeta: ProductMeta) {
+  return [
+    {
+      id: 'windows',
+      label: 'Windows',
+      platformSupport: productMeta.windowsSupport,
+      fileName: installer.fileName,
+      fileSize: installer.fileSize,
+      url: installer.installerPath,
+      buttonLabel: 'Download .exe',
+      enabled: true,
+      icon: HardDriveDownload,
+    },
+    ...getMobileDownloads(installer).map((download) => ({
+      ...download,
+      icon: download.id === 'ios' ? Apple : Smartphone,
+    })),
+  ];
+}
+
+function isExternalUrl(url: string) {
+  return /^https?:\/\//i.test(url.trim());
+}
+
+function getLandingConfigPayload(
+  copy: EditableCopy,
+  productMeta: ProductMeta,
+  installer: InstallerMeta,
+  theme: LandingTheme,
+) {
+  return { copy, productMeta, installer, theme };
+}
+
+function buildAiConfigPrompt(
+  copy: EditableCopy,
+  productMeta: ProductMeta,
+  installer: InstallerMeta,
+  theme: LandingTheme,
+) {
+  const config = getLandingConfigPayload(copy, productMeta, installer, theme);
+  const schema = {
+    copy: defaultCopy,
+    productMeta: defaultProductMeta,
+    installer: defaultInstallerMeta,
+    theme: defaultTheme,
+  };
+
+  return `Create production-ready JSON for this Windows, Android, and iOS app download page.
+
+Return only valid JSON. Do not wrap it in Markdown. Do not include comments or explanations.
+
+The JSON must keep this exact top-level shape:
+{
+  "copy": {},
+  "productMeta": {},
+  "installer": {},
+  "theme": {}
+}
+
+Rules:
+- Keep every key shown in the schema.
+- Write concise landing-page copy for a real downloadable product across Windows, Android, and iOS.
+- Preserve browser-safe paths only. Do not use local filesystem paths.
+- Use /downloads/<file-name>.exe for Windows installers and /downloads/<file-name>.apk for Android packages unless a hosted URL is provided.
+- Use an App Store or TestFlight URL for iOS unless it is intentionally unavailable.
+- Use /screenshots/<file-name> for screenshot paths.
+- Keep colors as hex strings.
+- Keep installer.mirrors as an array with the same mirror ids.
+- Keep installer.mobileDownloads as an array with the android and ios ids.
+- Use realistic release, publisher, support, checksum, changelog, and download metadata when supplied. If unknown, leave a clear placeholder.
+
+Schema with required keys:
+${JSON.stringify(schema, null, 2)}
+
+Current site JSON to rewrite:
+${JSON.stringify(config, null, 2)}`;
+}
+
 function getGitHubReleaseUrl(installer: InstallerMeta) {
   const owner = installer.githubOwner.trim();
   const repo = installer.githubRepo.trim();
@@ -747,13 +872,15 @@ function EditorDrawer({
   const [uploadMessage, setUploadMessage] = useState('Upload background or screenshot images to /public/screenshots.');
   const [linkStatuses, setLinkStatuses] = useState<Record<string, LinkStatus>>({});
   const [isValidatingLinks, setIsValidatingLinks] = useState(false);
+  const [aiJson, setAiJson] = useState('');
+  const [aiMessage, setAiMessage] = useState('Copy the prompt, paste it into Claude Code, then paste the returned JSON here.');
 
   if (!canEdit) {
     return null;
   }
 
   function exportJson() {
-    const payload = JSON.stringify({ copy, productMeta, installer, theme }, null, 2);
+    const payload = JSON.stringify(getLandingConfigPayload(copy, productMeta, installer, theme), null, 2);
     const blob = new Blob([payload], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -763,14 +890,24 @@ function EditorDrawer({
     URL.revokeObjectURL(url);
   }
 
-  async function importJson(file: File) {
-    const parsed = JSON.parse(await file.text()) as {
-      copy?: Partial<EditableCopy>;
-      productMeta?: Partial<ProductMeta>;
-      installer?: Partial<InstallerMeta>;
-      theme?: Partial<LandingTheme>;
-    };
+  async function copyAiPrompt() {
+    const prompt = buildAiConfigPrompt(copy, productMeta, installer, theme);
 
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setAiMessage('AI prompt copied. Paste it into Claude Code.');
+    } catch {
+      setAiJson(prompt);
+      setAiMessage('Clipboard was blocked. The prompt is in the box below.');
+    }
+  }
+
+  function applyConfigJson(parsed: {
+    copy?: Partial<EditableCopy>;
+    productMeta?: Partial<ProductMeta>;
+    installer?: Partial<InstallerMeta>;
+    theme?: Partial<LandingTheme>;
+  }) {
     if (parsed.copy) {
       replaceCopy({ ...defaultCopy, ...parsed.copy });
     }
@@ -782,6 +919,33 @@ function EditorDrawer({
     }
     if (parsed.theme) {
       replaceTheme({ ...defaultTheme, ...parsed.theme });
+    }
+  }
+
+  async function importJson(file: File) {
+    const parsed = JSON.parse(await file.text()) as {
+      copy?: Partial<EditableCopy>;
+      productMeta?: Partial<ProductMeta>;
+      installer?: Partial<InstallerMeta>;
+      theme?: Partial<LandingTheme>;
+    };
+
+    applyConfigJson(parsed);
+  }
+
+  function applyAiJson() {
+    try {
+      const parsed = JSON.parse(aiJson) as {
+        copy?: Partial<EditableCopy>;
+        productMeta?: Partial<ProductMeta>;
+        installer?: Partial<InstallerMeta>;
+        theme?: Partial<LandingTheme>;
+      };
+
+      applyConfigJson(parsed);
+      setAiMessage('AI JSON applied locally.');
+    } catch {
+      setAiMessage('That is not valid JSON yet. Paste Claude Code output without Markdown fences.');
     }
   }
 
@@ -820,6 +984,14 @@ function EditorDrawer({
     updateMirror(id, { url, enabled: Boolean(url.trim()) });
   }
 
+  function updateMobileDownload(id: MobilePlatform, patch: Partial<MobileDownload>) {
+    updateInstaller({
+      mobileDownloads: getMobileDownloads(installer).map((download) =>
+        download.id === id ? { ...download, ...patch } : download,
+      ),
+    });
+  }
+
   function useMirrorAsPrimary(id: string) {
     const mirror = getMirror(id);
     if (mirror.url.trim()) {
@@ -849,6 +1021,7 @@ function EditorDrawer({
       { id: 'github-releases', url: getGitHubReleaseUrl(installer) || getMirror('github-releases').url },
       { id: 'google-drive', url: googleDriveMirror.url },
       { id: 'onedrive', url: oneDriveMirror.url },
+      ...getMobileDownloads(installer).map((download) => ({ id: download.id, url: download.url })),
     ];
 
     setIsValidatingLinks(true);
@@ -919,6 +1092,10 @@ function EditorDrawer({
                 <Download size={16} />
                 Export JSON
               </button>
+              <button type="button" className="editor-button" onClick={() => void copyAiPrompt()}>
+                <TerminalSquare size={16} />
+                Copy AI prompt
+              </button>
               <button type="button" className="editor-button" onClick={() => importInputRef.current?.click()}>
                 <Upload size={16} />
                 Import JSON
@@ -936,6 +1113,24 @@ function EditorDrawer({
                 <RotateCcw size={16} />
                 Reset all local edits
               </button>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <label className="editor-label">
+                Paste AI JSON
+                <textarea
+                  className="editor-input min-h-36 resize-y font-mono text-xs leading-5"
+                  value={aiJson}
+                  placeholder='{"copy": {...}, "productMeta": {...}, "installer": {...}, "theme": {...}}'
+                  onChange={(event) => setAiJson(event.currentTarget.value)}
+                />
+              </label>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button type="button" className="editor-button" onClick={applyAiJson} disabled={!aiJson.trim()}>
+                  <Check size={16} />
+                  Apply pasted JSON
+                </button>
+                <p className="text-xs font-medium leading-5 text-gray-500">{aiMessage}</p>
+              </div>
             </div>
             <input
               ref={importInputRef}
@@ -1074,6 +1269,72 @@ function EditorDrawer({
             </div>
           </EditorSection>
 
+          <EditorSection title="Mobile downloads" icon={Smartphone}>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
+              <p className="font-semibold">Android and iOS setup</p>
+              <p className="mt-1 leading-6">
+                Use Android for APK, AAB, Play Store, or hosted package links. Use iOS for App Store or TestFlight links.
+              </p>
+            </div>
+            <div className="space-y-4">
+              {getMobileDownloads(installer).map((download) => {
+                const Icon = download.id === 'ios' ? Apple : Smartphone;
+
+                return (
+                  <div className="grid gap-3 rounded-lg border border-gray-200 p-3" key={download.id}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-gray-950">
+                        <Icon size={17} />
+                        {download.label}
+                      </div>
+                      <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={download.enabled}
+                          onChange={(event) => updateMobileDownload(download.id, { enabled: event.currentTarget.checked })}
+                        />
+                        Show
+                      </label>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <TextField
+                        label="Platform label"
+                        value={download.label}
+                        onChange={(value) => updateMobileDownload(download.id, { label: value })}
+                      />
+                      <TextField
+                        label="Support"
+                        value={download.platformSupport}
+                        onChange={(value) => updateMobileDownload(download.id, { platformSupport: value })}
+                      />
+                      <TextField
+                        label="File or listing"
+                        value={download.fileName}
+                        onChange={(value) => updateMobileDownload(download.id, { fileName: value })}
+                      />
+                      <TextField
+                        label="Size or note"
+                        value={download.fileSize}
+                        onChange={(value) => updateMobileDownload(download.id, { fileSize: value })}
+                      />
+                      <TextField
+                        label="Button label"
+                        value={download.buttonLabel}
+                        onChange={(value) => updateMobileDownload(download.id, { buttonLabel: value })}
+                      />
+                      <TextField
+                        label="Download URL"
+                        value={download.url}
+                        onChange={(value) => updateMobileDownload(download.id, { url: value })}
+                      />
+                    </div>
+                    <LinkStatusBadge label={download.label} status={linkStatuses[download.id] ?? 'unchecked'} />
+                  </div>
+                );
+              })}
+            </div>
+          </EditorSection>
+
           <EditorSection title="Hero and preview" icon={Edit3}>
             <TextField label="Eyebrow" value={copy.eyebrow} onChange={(value) => updateCopy('eyebrow', value)} />
             <TextField label="Hero title" value={copy.heroTitle} onChange={(value) => updateCopy('heroTitle', value)} />
@@ -1168,6 +1429,11 @@ function EditorDrawer({
                 label="Support email"
                 value={productMeta.supportEmail}
                 onChange={(value) => updateProductMeta({ supportEmail: value })}
+              />
+              <TextField
+                label="GitHub project URL"
+                value={productMeta.githubUrl}
+                onChange={(value) => updateProductMeta({ githubUrl: value })}
               />
               <TextField
                 label="Installer filename"
@@ -1574,11 +1840,13 @@ function ButtonLink({
   children,
   variant = 'primary',
   theme,
+  external = false,
 }: {
   href: string;
   children: ReactNode;
   variant?: 'primary' | 'secondary';
   theme: LandingTheme;
+  external?: boolean;
 }) {
   const classes =
     variant === 'primary'
@@ -1588,6 +1856,8 @@ function ButtonLink({
   return (
     <a
       href={href}
+      target={external ? '_blank' : undefined}
+      rel={external ? 'noreferrer' : undefined}
       style={
         variant === 'primary'
           ? { ...getAccentStyle(theme), color: theme.buttonTextColor }
@@ -1675,12 +1945,23 @@ function Header({ installer, productMeta, theme }: { installer: InstallerMeta; p
         </div>
         <div className="flex items-center gap-2">
           <a
-            href={installer.installerPath}
+            href={productMeta.githubUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="View project on GitHub"
+            title="View project on GitHub"
+            className="inline-grid size-10 place-items-center rounded-md border transition hover:opacity-80"
+            style={getSurfaceStyle(theme)}
+          >
+            <Github size={18} />
+          </a>
+          <a
+            href="#download"
             style={{ ...getAccentStyle(theme), color: theme.buttonTextColor }}
             className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition brightness-100 hover:brightness-95 sm:px-4"
           >
             <ArrowDownToLine size={17} />
-            <span className="hidden sm:inline">Download</span>
+            <span className="hidden sm:inline">Downloads</span>
           </a>
           <button
             type="button"
@@ -1707,6 +1988,15 @@ function Header({ installer, productMeta, theme }: { installer: InstallerMeta; p
                 {label}
               </a>
             ))}
+            <a
+              className="rounded-md px-2 py-3 transition hover:opacity-80"
+              href={productMeta.githubUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              GitHub
+            </a>
           </div>
         </div>
       ) : null}
@@ -1759,20 +2049,24 @@ function Hero({
             style={{ color: theme.mutedTextColor }}
           />
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <ButtonLink href={installer.installerPath} theme={theme}>
+            <ButtonLink href="#download" theme={theme}>
               <HardDriveDownload size={19} />
-              Download Installer
+              Download Apps
             </ButtonLink>
             <ButtonLink href="#features" variant="secondary" theme={theme}>
               View Features
               <ChevronRight size={18} />
             </ButtonLink>
+            <ButtonLink href={productMeta.githubUrl} variant="secondary" theme={theme} external>
+              <Github size={19} />
+              GitHub
+            </ButtonLink>
           </div>
           <dl className="mt-8 grid max-w-2xl grid-cols-1 gap-3 text-sm sm:grid-cols-3" style={{ color: theme.mutedTextColor }}>
             {[
               ['Latest version', productMeta.version],
-              ['Windows support', productMeta.windowsSupport],
-              ['File size', installer.fileSize],
+              ['Platforms', 'Windows, Android, iOS'],
+              ['Windows size', installer.fileSize],
             ].map(([label, value]) => (
               <div className="rounded-lg border p-4 shadow-sm backdrop-blur" style={getSurfaceStyle(theme)} key={label}>
                 <dt className="font-medium" style={{ color: theme.textColor }}>{label}</dt>
@@ -2021,6 +2315,7 @@ function DownloadPanel({
   theme: LandingTheme;
 }) {
   const activeMirrors = getInstallerMirrors(installer).filter((mirror) => mirror.enabled && mirror.url.trim());
+  const platformDownloads = getPlatformDownloads(installer, productMeta).filter((download) => download.enabled);
 
   return (
     <section
@@ -2052,31 +2347,73 @@ function DownloadPanel({
         <div className="rounded-xl border p-6 shadow-soft" style={getSubtleSurfaceStyle(theme)}>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-xl font-semibold">{productMeta.name} Setup</h3>
-              <p className="mt-1 text-sm text-gray-300">
-                {productMeta.version} for {productMeta.windowsSupport}
+              <h3 className="text-xl font-semibold">{productMeta.name} downloads</h3>
+              <p className="mt-1 text-sm" style={{ color: theme.mutedTextColor }}>
+                {productMeta.version} released {productMeta.releaseDate}
               </p>
             </div>
             <FileText className="text-emerald-300" size={28} />
           </div>
+          <div className="mt-6 grid gap-3">
+            {platformDownloads.map((download) => {
+              const Icon = download.icon;
+              const hasUrl = Boolean(download.url.trim());
+
+              return (
+                <article className="rounded-lg border p-4" style={getSurfaceStyle(theme)} key={download.id}>
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="grid size-10 shrink-0 place-items-center rounded-md"
+                      style={{ backgroundColor: theme.subtleSurfaceColor, color: theme.accentColor }}
+                    >
+                      <Icon size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h4 className="font-semibold">{download.label}</h4>
+                        <span className="text-xs font-medium" style={{ color: theme.mutedTextColor }}>
+                          {download.fileSize}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm" style={{ color: theme.mutedTextColor }}>
+                        {download.platformSupport}
+                      </p>
+                      <p className="mt-2 truncate text-xs" style={{ color: theme.mutedTextColor }}>
+                        {download.fileName}
+                      </p>
+                      {hasUrl ? (
+                        <a
+                          href={download.url}
+                          target={isExternalUrl(download.url) ? '_blank' : undefined}
+                          rel={isExternalUrl(download.url) ? 'noreferrer' : undefined}
+                          style={{ backgroundColor: theme.accentColor, color: theme.buttonTextColor }}
+                          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition brightness-100 hover:brightness-95"
+                        >
+                          <Icon size={18} />
+                          {download.buttonLabel}
+                        </a>
+                      ) : (
+                        <span
+                          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border px-4 text-sm font-semibold"
+                          style={{ borderColor: theme.borderColor, color: theme.mutedTextColor }}
+                        >
+                          <Icon size={18} />
+                          Add download link
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
           <dl className="mt-6 grid gap-3 text-sm">
-            <MetaRow label="File" value={installer.fileName} theme={theme} />
-            <MetaRow label="Size" value={installer.fileSize} theme={theme} />
-            <MetaRow label="Released" value={productMeta.releaseDate} theme={theme} />
             <MetaRow label="Publisher" value={productMeta.publisher} theme={theme} />
             <div className="border-t pt-3" style={{ borderColor: theme.borderColor }}>
-              <dt style={{ color: theme.mutedTextColor }}>SHA-256</dt>
+              <dt style={{ color: theme.mutedTextColor }}>Windows SHA-256</dt>
               <dd className="mt-1 break-all font-mono text-xs font-medium text-gray-200">{installer.checksum}</dd>
             </div>
           </dl>
-          <a
-            href={installer.installerPath}
-            style={{ backgroundColor: theme.accentColor, color: theme.buttonTextColor }}
-            className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md px-5 text-sm font-semibold transition brightness-100 hover:brightness-95"
-          >
-            <HardDriveDownload size={19} />
-            Download .exe
-          </a>
           {activeMirrors.length > 0 ? (
             <div className="mt-4 border-t pt-4" style={{ borderColor: theme.borderColor }}>
               <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: theme.mutedTextColor }}>
@@ -2205,6 +2542,9 @@ function Footer({ productMeta, theme }: { productMeta: ProductMeta; theme: Landi
           </a>
           <a className="hover:opacity-80" href="#security">
             Security
+          </a>
+          <a className="hover:opacity-80" href={productMeta.githubUrl} target="_blank" rel="noreferrer">
+            GitHub
           </a>
           <a className="hover:opacity-80" href={`mailto:${productMeta.supportEmail}`}>
             Support
