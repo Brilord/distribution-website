@@ -4,6 +4,23 @@ node_modules/
 # Build output
 dist/
 
+# Capacitor generated web assets and native build output
+android/.gradle/
+android/**/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/app/src/main/res/xml/config.xml
+android/capacitor-cordova-android-plugins/
+ios/App/build/
+ios/App/Pods/
+ios/App/output/
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+ios/DerivedData/
+ios/capacitor-cordova-ios-plugins/
+
 # Logs
 *.log
 npm-debug.log*
@@ -17,9 +34,19 @@ vite-dev.log
 .env.*
 !.env.example
 
+# Native local configuration and signing secrets
+android/local.properties
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+
 # Editor and OS files
 .vscode/
 .idea/
+*.iml
+*.xcuserstate
+xcuserdata/
 .DS_Store
 Thumbs.db
 

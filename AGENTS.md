@@ -82,6 +82,53 @@ Security and trust content should be updated before launch:
 - Keep buttons, metadata, changelog, and security details easy to scan.
 - Use semantic section IDs for navigation anchors.
 
+## Repository Safety
+
+- Do not commit generated build output such as `dist/` unless explicitly requested.
+- Do not delete or replace installer files in `public/downloads/` unless the user explicitly asks.
+- Treat existing screenshots and installers as release assets; preserve filenames unless updating the product metadata and download links together.
+
+## Download Verification
+
+After changing download-related code or product metadata:
+
+- Confirm the configured download path exists under `public/downloads/`.
+- Confirm the download CTA uses a relative browser path, not a local filesystem path.
+- Confirm installer filename, version, release date, checksum, and changelog describe the same release.
+
+## Local Edit Mode Verification
+
+When touching `EditorToolbar`, `EditableText`, localStorage keys, or `vite.config.ts` upload middleware:
+
+- Verify edit controls render on `localhost`.
+- Verify edit controls do not render on non-local hostnames.
+- Verify production builds do not expose upload behavior as a public API.
+
+## Accessibility
+
+- Keep CTA buttons and navigation keyboard-accessible.
+- Use meaningful alt text for product screenshots.
+- Preserve readable color contrast for text, buttons, metadata, and disabled states.
+- Do not rely on color alone for trust/security status indicators.
+
+## Browser Compatibility
+
+- Keep the landing page functional in current Chrome, Edge, and Firefox.
+- Avoid browser APIs that require permissions or unstable flags unless explicitly requested.
+
+## Release Readiness
+
+Before launch, replace all placeholder trust details:
+
+- Real product name
+- Real installer filename
+- Real version number
+- Real SHA-256 checksum
+- Real publisher/signing name
+- Real support contact
+- Real changelog
+- Real screenshots.
+
 ## Verification Checklist
 
 Before handing off changes:

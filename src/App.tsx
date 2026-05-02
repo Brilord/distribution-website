@@ -47,37 +47,38 @@ import {
 } from 'lucide-react';
 
 const product = {
-  name: 'MyApp',
-  version: 'v2.4.1',
+  name: 'HertPicture',
+  version: 'v0.1.0',
   fileSize: '2.3 MB',
   fileName: 'HertPicture_0.1.0_x64-setup.exe',
   windowsSupport: 'Windows 10 and 11',
+  systemRequirements: 'Windows 10 or 11, 64-bit processor, 50 MB free disk space, administrator approval may be required.',
   installerPath: '/downloads/HertPicture_0.1.0_x64-setup.exe',
   checksum: '4b9e2791aacd9e0112b5dc50f44a8a6ffb9a914f8a912a72d42064e4894b5d5f',
   releaseDate: 'April 28, 2026',
-  publisher: 'Replace with your code-signing publisher',
-  supportEmail: 'support@myapp.example',
-  screenshotPath: '/screenshots/main-preview.png',
+  publisher: 'Brilord',
+  supportEmail: 'support@hertpicture.app',
+  screenshotPath: '/screenshots/hertpicture-preview.svg',
   githubUrl: 'https://github.com/Brilord/distribution-website',
 };
 
 const defaultCopy = {
   eyebrow: `Latest release ${product.version}`,
-  heroTitle: `Download ${product.name} for Windows, Android, and iOS`,
+  heroTitle: `Download ${product.name} for Windows`,
   heroDescription:
-    'A polished software distribution template for presenting your app, explaining its value, and giving users a direct path to the latest desktop and mobile releases.',
-  previewTitle: 'Show the desktop app before users download it.',
+    'Install the latest HertPicture Windows release and start managing picture workflows from a focused desktop app.',
+  previewTitle: 'Preview HertPicture before you install.',
   previewDescription:
-    'Use the built-in desktop mockup while preparing your real product screenshots, then swap in assets from /public/screenshots/main-preview.png.',
-  featuresTitle: 'Everything a cross-platform product page needs.',
+    'The product preview shows the desktop layout users can expect from the current Windows release.',
+  featuresTitle: 'A focused Windows app for picture workflows.',
   featuresDescription:
-    'Clear feature messaging, install details, release metadata, and user reassurance are all built into the template.',
-  downloadTitle: 'Get the latest release for your device.',
+    'HertPicture keeps common image tasks, status details, and release verification easy to find.',
+  downloadTitle: 'Get the latest Windows release.',
   downloadDescription:
-    'Point each platform button to your signed Windows installer, Android package, or iOS App Store listing. Keep version, file size, and verification details visible.',
+    'Download the signed Windows installer, then verify the file hash against the published SHA-256 checksum.',
   featureFastTitle: 'Fast daily workflow',
   featureFastText:
-    'Open, process, and export common tasks through a clean desktop interface designed for repeat use.',
+    'Open, review, and process picture tasks through a clean desktop interface designed for repeat use.',
   featureNativeTitle: 'Native Windows experience',
   featureNativeText:
     'Installer-ready distribution with familiar system behavior, local file access, and desktop shortcuts.',
@@ -91,15 +92,16 @@ const defaultCopy = {
     'The interface keeps heavyweight operations visible, cancellable, and separate from lightweight browsing.',
   featureSecurityTitle: 'Security-minded install',
   featureSecurityText: 'Publish version details, hashes, and update notes so users can verify what they are downloading.',
-  changelogOne: 'Improved startup time for large project folders.',
-  changelogTwo: 'Added clearer installer messaging for managed Windows devices.',
-  changelogThree: 'Fixed a display issue in compact task history view.',
+  changelogOne: 'Initial Windows installer release for HertPicture.',
+  changelogTwo: 'Added downloadable setup package with published SHA-256 verification.',
+  changelogThree: 'Published release metadata, support contact, and security notes for the Windows build.',
 };
 
 const defaultProductMeta = {
   name: product.name,
   version: product.version,
   windowsSupport: product.windowsSupport,
+  systemRequirements: product.systemRequirements,
   releaseDate: product.releaseDate,
   publisher: product.publisher,
   supportEmail: product.supportEmail,
@@ -117,7 +119,12 @@ const defaultInstallerMeta = {
   githubRepo: 'distribution-website',
   githubAssetName: product.fileName,
   mirrors: [
-    { id: 'github-releases', label: 'GitHub Releases', url: '', enabled: false },
+    {
+      id: 'github-releases',
+      label: 'GitHub Releases',
+      url: 'https://github.com/Brilord/distribution-website/releases/latest/download/HertPicture_0.1.0_x64-setup.exe',
+      enabled: false,
+    },
     { id: 'google-drive', label: 'Google Drive', url: '', enabled: false },
     { id: 'onedrive', label: 'OneDrive', url: '', enabled: false },
     { id: 'dropbox', label: 'Dropbox', url: '', enabled: false },
@@ -128,11 +135,11 @@ const defaultInstallerMeta = {
       id: 'android' as MobilePlatform,
       label: 'Android',
       platformSupport: 'Android 8.0 and newer',
-      fileName: 'MyApp.apk',
+      fileName: 'HertPicture.apk',
       fileSize: 'Add APK size',
       url: '',
       buttonLabel: 'Download APK',
-      enabled: true,
+      enabled: false,
     },
     {
       id: 'ios' as MobilePlatform,
@@ -142,7 +149,7 @@ const defaultInstallerMeta = {
       fileSize: 'Store listing',
       url: '',
       buttonLabel: 'Open App Store',
-      enabled: true,
+      enabled: false,
     },
   ],
 };
@@ -533,6 +540,13 @@ function getPlatformDownloads(installer: InstallerMeta, productMeta: ProductMeta
       icon: download.id === 'ios' ? Apple : Smartphone,
     })),
   ];
+}
+
+function getEnabledPlatformLabels(installer: InstallerMeta, productMeta: ProductMeta) {
+  return getPlatformDownloads(installer, productMeta)
+    .filter((download) => download.enabled)
+    .map((download) => download.label)
+    .join(', ');
 }
 
 function isExternalUrl(url: string) {
@@ -1416,6 +1430,12 @@ function EditorDrawer({
                 onChange={(value) => updateProductMeta({ windowsSupport: value })}
               />
               <TextField
+                label="System requirements"
+                value={productMeta.systemRequirements}
+                onChange={(value) => updateProductMeta({ systemRequirements: value })}
+                multiline
+              />
+              <TextField
                 label="Release date"
                 value={productMeta.releaseDate}
                 onChange={(value) => updateProductMeta({ releaseDate: value })}
@@ -2065,7 +2085,7 @@ function Hero({
           <dl className="mt-8 grid max-w-2xl grid-cols-1 gap-3 text-sm sm:grid-cols-3" style={{ color: theme.mutedTextColor }}>
             {[
               ['Latest version', productMeta.version],
-              ['Platforms', 'Windows, Android, iOS'],
+              ['Platforms', getEnabledPlatformLabels(installer, productMeta) || 'Windows'],
               ['Windows size', installer.fileSize],
             ].map(([label, value]) => (
               <div className="rounded-lg border p-4 shadow-sm backdrop-blur" style={getSurfaceStyle(theme)} key={label}>
@@ -2409,9 +2429,16 @@ function DownloadPanel({
           </div>
           <dl className="mt-6 grid gap-3 text-sm">
             <MetaRow label="Publisher" value={productMeta.publisher} theme={theme} />
+            <MetaRow label="System requirements" value={productMeta.systemRequirements} theme={theme} />
             <div className="border-t pt-3" style={{ borderColor: theme.borderColor }}>
               <dt style={{ color: theme.mutedTextColor }}>Windows SHA-256</dt>
               <dd className="mt-1 break-all font-mono text-xs font-medium text-gray-200">{installer.checksum}</dd>
+            </div>
+            <div className="border-t pt-3" style={{ borderColor: theme.borderColor }}>
+              <dt style={{ color: theme.mutedTextColor }}>Verify on Windows</dt>
+              <dd className="mt-1 break-all font-mono text-xs font-medium text-gray-200">
+                Get-FileHash .\{installer.fileName} -Algorithm SHA256
+              </dd>
             </div>
           </dl>
           {activeMirrors.length > 0 ? (
@@ -2510,6 +2537,12 @@ function TrustSections({
               <li className="flex gap-3">
                 <ShieldCheck className="mt-0.5 shrink-0" style={{ color: theme.accentColor }} size={18} />
                 <span className="break-all">SHA-256: {installer.checksum}</span>
+              </li>
+              <li className="flex gap-3">
+                <TerminalSquare className="mt-0.5 shrink-0" style={{ color: theme.accentColor }} size={18} />
+                <span className="break-all">
+                  Verify with: <code>Get-FileHash .\{installer.fileName} -Algorithm SHA256</code>
+                </span>
               </li>
               <li className="flex gap-3">
                 <ShieldCheck className="mt-0.5 shrink-0" style={{ color: theme.accentColor }} size={18} />
