@@ -20,6 +20,14 @@ body {
   margin: 0;
 }
 
+.distribution-page :where(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--heading-font-family);
+}
+
+.distribution-page :where(code, kbd, samp, pre, .font-mono) {
+  font-family: var(--mono-font-family);
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;
@@ -39,7 +47,7 @@ a {
   }
 
   .editable-copy {
-    @apply rounded-md outline outline-2 outline-dashed outline-emerald-400/70 outline-offset-4 transition;
+    @apply rounded-md outline outline-2 outline-dashed outline-emerald-400/70 outline-offset-4 transition focus-visible:outline-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-100;
   }
 
   .editable-copy:focus {
@@ -54,7 +62,12 @@ a {
     @apply min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-gray-950 outline-none transition placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100;
   }
 
+  input[type='color'].editor-input,
+  input[type='color'] {
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600;
+  }
+
   .editor-button {
-    @apply inline-flex min-h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50;
+    @apply inline-flex min-h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60;
   }
 }

@@ -1,5 +1,7 @@
 import {
+  useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -7,7 +9,9 @@ import {
   type CSSProperties,
   type ElementType,
   type FocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import {
   AlertTriangle,
@@ -18,18 +22,17 @@ import {
   ChevronRight,
   Clock3,
   Cloud,
+  Copy,
   Download,
   Edit3,
   ExternalLink,
   FileText,
-  Gauge,
   Github,
   HardDriveDownload,
   Image,
   Loader2,
   LockKeyhole,
   Menu,
-  MonitorCog,
   Palette,
   PanelRightOpen,
   RotateCcw,
@@ -41,217 +44,84 @@ import {
   TerminalSquare,
   Upload,
   UploadCloud,
-  Workflow,
   X,
-  Zap,
 } from 'lucide-react';
 
-const product = {
-  name: 'HertPicture',
-  version: 'v0.1.0',
-  fileSize: '2.3 MB',
-  fileName: 'HertPicture_0.1.0_x64-setup.exe',
-  windowsSupport: 'Windows 10 and 11',
-  systemRequirements: 'Windows 10 or 11, 64-bit processor, 50 MB free disk space, administrator approval may be required.',
-  installerPath: '/downloads/HertPicture_0.1.0_x64-setup.exe',
-  checksum: '4b9e2791aacd9e0112b5dc50f44a8a6ffb9a914f8a912a72d42064e4894b5d5f',
-  releaseDate: 'April 28, 2026',
-  publisher: 'Brilord',
-  supportEmail: 'support@hertpicture.app',
-  screenshotPath: '/screenshots/hertpicture-preview.svg',
-  githubUrl: 'https://github.com/Brilord/distribution-website',
-};
-
-const defaultCopy = {
-  eyebrow: `Latest release ${product.version}`,
-  heroTitle: `Download ${product.name} for Windows`,
-  heroDescription:
-    'Install the latest HertPicture Windows release and start managing picture workflows from a focused desktop app.',
-  previewTitle: 'Preview HertPicture before you install.',
-  previewDescription:
-    'The product preview shows the desktop layout users can expect from the current Windows release.',
-  featuresTitle: 'A focused Windows app for picture workflows.',
-  featuresDescription:
-    'HertPicture keeps common image tasks, status details, and release verification easy to find.',
-  downloadTitle: 'Get the latest Windows release.',
-  downloadDescription:
-    'Download the signed Windows installer, then verify the file hash against the published SHA-256 checksum.',
-  featureFastTitle: 'Fast daily workflow',
-  featureFastText:
-    'Open, review, and process picture tasks through a clean desktop interface designed for repeat use.',
-  featureNativeTitle: 'Native Windows experience',
-  featureNativeText:
-    'Installer-ready distribution with familiar system behavior, local file access, and desktop shortcuts.',
-  featureAutomationTitle: 'Automated task paths',
-  featureAutomationText:
-    'Use presets and guided flows to reduce setup time while keeping important controls easy to reach.',
-  featureHistoryTitle: 'Clear activity history',
-  featureHistoryText: 'Review recent actions, completed jobs, warnings, and outputs without digging through log files.',
-  featurePerformanceTitle: 'Performance focused',
-  featurePerformanceText:
-    'The interface keeps heavyweight operations visible, cancellable, and separate from lightweight browsing.',
-  featureSecurityTitle: 'Security-minded install',
-  featureSecurityText: 'Publish version details, hashes, and update notes so users can verify what they are downloading.',
-  changelogOne: 'Initial Windows installer release for HertPicture.',
-  changelogTwo: 'Added downloadable setup package with published SHA-256 verification.',
-  changelogThree: 'Published release metadata, support contact, and security notes for the Windows build.',
-};
-
-const defaultProductMeta = {
-  name: product.name,
-  version: product.version,
-  windowsSupport: product.windowsSupport,
-  systemRequirements: product.systemRequirements,
-  releaseDate: product.releaseDate,
-  publisher: product.publisher,
-  supportEmail: product.supportEmail,
-  screenshotPath: product.screenshotPath,
-  githubUrl: product.githubUrl,
-};
-
-const defaultInstallerMeta = {
-  fileName: product.fileName,
-  fileSize: product.fileSize,
-  installerPath: product.installerPath,
-  checksum: product.checksum,
-  sizeBytes: 0,
-  githubOwner: 'Brilord',
-  githubRepo: 'distribution-website',
-  githubAssetName: product.fileName,
-  mirrors: [
-    {
-      id: 'github-releases',
-      label: 'GitHub Releases',
-      url: 'https://github.com/Brilord/distribution-website/releases/latest/download/HertPicture_0.1.0_x64-setup.exe',
-      enabled: false,
-    },
-    { id: 'google-drive', label: 'Google Drive', url: '', enabled: false },
-    { id: 'onedrive', label: 'OneDrive', url: '', enabled: false },
-    { id: 'dropbox', label: 'Dropbox', url: '', enabled: false },
-    { id: 'custom', label: 'Custom mirror', url: '', enabled: false },
-  ],
-  mobileDownloads: [
-    {
-      id: 'android' as MobilePlatform,
-      label: 'Android',
-      platformSupport: 'Android 8.0 and newer',
-      fileName: 'HertPicture.apk',
-      fileSize: 'Add APK size',
-      url: '',
-      buttonLabel: 'Download APK',
-      enabled: false,
-    },
-    {
-      id: 'ios' as MobilePlatform,
-      label: 'iOS',
-      platformSupport: 'iOS 15 and newer',
-      fileName: 'App Store or TestFlight',
-      fileSize: 'Store listing',
-      url: '',
-      buttonLabel: 'Open App Store',
-      enabled: false,
-    },
-  ],
-};
-
-const defaultTheme = {
-  backgroundType: 'gradient',
-  backgroundColor: '#060a12',
-  gradientStart: '#07111f',
-  gradientEnd: '#0f2f2a',
-  patternColor: '#12352f',
-  pageBackground: '#060a12',
-  sectionBackground: '#0b1220',
-  alternateSectionBackground: '#111827',
-  surfaceColor: '#151f2e',
-  subtleSurfaceColor: '#0f172a',
-  borderColor: '#2b3648',
-  textColor: '#f8fafc',
-  mutedTextColor: '#a7b0c0',
-  headerBackground: '#080d16',
-  downloadBackground: '#050812',
-  downloadTextColor: '#f8fafc',
-  accentColor: '#22c55e',
-  buttonTextColor: '#04130a',
-  backgroundImage: '',
-  overlayOpacity: 0.45,
-  density: 'normal',
-} satisfies LandingTheme;
-
-type CopyKey = keyof typeof defaultCopy;
-type EditableCopy = Record<CopyKey, string>;
-type ProductMeta = typeof defaultProductMeta;
-type LandingTheme = {
-  backgroundType: 'solid' | 'gradient' | 'image' | 'pattern';
-  backgroundColor: string;
-  gradientStart: string;
-  gradientEnd: string;
-  patternColor: string;
-  pageBackground: string;
-  sectionBackground: string;
-  alternateSectionBackground: string;
-  surfaceColor: string;
-  subtleSurfaceColor: string;
-  borderColor: string;
-  textColor: string;
-  mutedTextColor: string;
-  headerBackground: string;
-  downloadBackground: string;
-  downloadTextColor: string;
-  accentColor: string;
-  buttonTextColor: string;
-  backgroundImage: string;
-  overlayOpacity: number;
-  density: 'compact' | 'normal' | 'spacious';
-};
-type InstallerMeta = {
-  fileName: string;
-  fileSize: string;
-  installerPath: string;
-  checksum: string;
-  sizeBytes: number;
-  githubOwner: string;
-  githubRepo: string;
-  githubAssetName: string;
-  mirrors: DownloadMirror[];
-  mobileDownloads: MobileDownload[];
-};
-type DownloadMirror = {
-  id: string;
-  label: string;
-  url: string;
-  enabled: boolean;
-};
-type MobilePlatform = 'android' | 'ios';
-type MobileDownload = {
-  id: MobilePlatform;
-  label: string;
-  platformSupport: string;
-  fileName: string;
-  fileSize: string;
-  url: string;
-  buttonLabel: string;
-  enabled: boolean;
-};
-type SaveState = 'saved' | 'saving';
-type LinkStatus = 'unchecked' | 'checking' | 'reachable' | 'blocked' | 'missing';
-type PrimaryHost = 'local' | 'github-releases' | 'google-drive' | 'onedrive' | 'custom';
+import {
+  changelogKeys,
+  defaultCopy,
+  defaultInstallerMeta,
+  defaultProductMeta,
+  defaultTheme,
+  featureCards,
+  landingConfigAppName,
+  landingConfigSchemaVersion,
+  product,
+} from './config';
+import type {
+  CopyKey,
+  DownloadMirror,
+  EditableCopy,
+  InstallerMeta,
+  LandingConfigPayload,
+  LandingTheme,
+  LinkStatus,
+  MobileDownload,
+  MobilePlatform,
+  PrimaryHost,
+  ProductMeta,
+  ReleaseManifest,
+  ReleaseManifestDownload,
+  SaveState,
+} from './types';
+import { getJsonDownloadHref, getReleaseReadinessItems, getVerifyCommand, type ReadinessItem } from './utils/release';
 
 const copyStorageKey = 'myapp-landing-copy';
 const productStorageKey = 'myapp-product-meta';
 const installerStorageKey = 'myapp-installer-meta';
 const themeStorageKey = 'myapp-landing-theme-v2';
+const editorDrawerId = 'developer-editor-drawer';
 
-const featureCards: Array<{ icon: ElementType; titleKey: CopyKey; textKey: CopyKey }> = [
-  { icon: Zap, titleKey: 'featureFastTitle', textKey: 'featureFastText' },
-  { icon: MonitorCog, titleKey: 'featureNativeTitle', textKey: 'featureNativeText' },
-  { icon: Workflow, titleKey: 'featureAutomationTitle', textKey: 'featureAutomationText' },
-  { icon: ScanSearch, titleKey: 'featureHistoryTitle', textKey: 'featureHistoryText' },
-  { icon: Gauge, titleKey: 'featurePerformanceTitle', textKey: 'featurePerformanceText' },
-  { icon: ShieldCheck, titleKey: 'featureSecurityTitle', textKey: 'featureSecurityText' },
+type FontPreset = Pick<LandingTheme, 'bodyFontFamily' | 'headingFontFamily' | 'monoFontFamily' | 'baseFontSize'>;
+
+const fontPresets: Array<{ label: string; value: FontPreset }> = [
+  {
+    label: 'System',
+    value: {
+      bodyFontFamily: defaultTheme.bodyFontFamily,
+      headingFontFamily: defaultTheme.headingFontFamily,
+      monoFontFamily: defaultTheme.monoFontFamily,
+      baseFontSize: 16,
+    },
+  },
+  {
+    label: 'Editorial',
+    value: {
+      bodyFontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
+      headingFontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif',
+      monoFontFamily: defaultTheme.monoFontFamily,
+      baseFontSize: 17,
+    },
+  },
+  {
+    label: 'Technical',
+    value: {
+      bodyFontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      headingFontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+      monoFontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+      baseFontSize: 16,
+    },
+  },
+  {
+    label: 'Friendly',
+    value: {
+      bodyFontFamily: 'Verdana, Geneva, sans-serif',
+      headingFontFamily: '"Trebuchet MS", Verdana, Geneva, sans-serif',
+      monoFontFamily: defaultTheme.monoFontFamily,
+      baseFontSize: 16,
+    },
+  },
 ];
-
-const changelogKeys: CopyKey[] = ['changelogOne', 'changelogTwo', 'changelogThree'];
 
 const themePresets: Array<{ label: string; value: LandingTheme }> = [
   { label: 'Dark', value: defaultTheme },
@@ -501,6 +371,101 @@ function getSectionStyle(theme: LandingTheme, alternate = false): CSSProperties 
   };
 }
 
+function getTypographyStyle(theme: LandingTheme): CSSProperties {
+  return {
+    fontFamily: theme.bodyFontFamily,
+    fontSize: `${theme.baseFontSize}px`,
+    '--heading-font-family': theme.headingFontFamily,
+    '--mono-font-family': theme.monoFontFamily,
+  } as CSSProperties;
+}
+
+function getFontPresetKey(theme: LandingTheme) {
+  const match = fontPresets.find(
+    (preset) =>
+      preset.value.bodyFontFamily === theme.bodyFontFamily &&
+      preset.value.headingFontFamily === theme.headingFontFamily &&
+      preset.value.monoFontFamily === theme.monoFontFamily &&
+      preset.value.baseFontSize === theme.baseFontSize,
+  );
+
+  return match?.label ?? 'Custom';
+}
+
+function getReadableLabel(value: string) {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, (character) => character.toUpperCase());
+}
+
+function getFocusableElements(container: HTMLElement) {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      [
+        'a[href]',
+        'button:not([disabled])',
+        'input:not([disabled])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        '[contenteditable="true"]',
+        '[tabindex]:not([tabindex="-1"])',
+      ].join(','),
+    ),
+  ).filter((element) => !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true');
+}
+
+function getHexRgb(hex: string) {
+  const normalized = hex.trim().replace('#', '');
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((character) => `${character}${character}`)
+          .join('')
+      : normalized;
+
+  if (!/^[0-9a-f]{6}$/i.test(value)) {
+    return null;
+  }
+
+  return {
+    r: parseInt(value.slice(0, 2), 16) / 255,
+    g: parseInt(value.slice(2, 4), 16) / 255,
+    b: parseInt(value.slice(4, 6), 16) / 255,
+  };
+}
+
+function getRelativeLuminance(hex: string) {
+  const rgb = getHexRgb(hex);
+
+  if (!rgb) {
+    return null;
+  }
+
+  const channels = [rgb.r, rgb.g, rgb.b].map((channel) =>
+    channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+  );
+
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function getContrastRatio(foreground: string, background: string) {
+  const foregroundLuminance = getRelativeLuminance(foreground);
+  const backgroundLuminance = getRelativeLuminance(background);
+
+  if (foregroundLuminance === null || backgroundLuminance === null) {
+    return null;
+  }
+
+  const lighter = Math.max(foregroundLuminance, backgroundLuminance);
+  const darker = Math.min(foregroundLuminance, backgroundLuminance);
+
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 function getInstallerMirrors(installer: InstallerMeta) {
   const currentMirrors = installer.mirrors ?? [];
   const defaultIds = new Set(defaultInstallerMeta.mirrors.map((mirror) => mirror.id));
@@ -553,13 +518,234 @@ function isExternalUrl(url: string) {
   return /^https?:\/\//i.test(url.trim());
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isBrowserSafeUrlOrPath(value: string, allowedLocalPrefixes: string[], allowEmpty = false) {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return allowEmpty;
+  }
+
+  if (/^https?:\/\//i.test(trimmedValue)) {
+    return true;
+  }
+
+  if (/^(file:|[a-zA-Z]:[\\/]|\\\\|\/Users\/|\/home\/)/.test(trimmedValue)) {
+    return false;
+  }
+
+  return allowedLocalPrefixes.some((prefix) => trimmedValue.startsWith(prefix));
+}
+
+function isHexColor(value: string) {
+  return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
+}
+
+function isSha256OrPlaceholder(value: string) {
+  const trimmedValue = value.trim();
+
+  if (/^[a-f0-9]{64}$/i.test(trimmedValue)) {
+    return true;
+  }
+
+  return trimmedValue.length > 0 && /(placeholder|replace|unknown|todo|add)/i.test(trimmedValue);
+}
+
+function normalizeImportedConfig(parsed: unknown): LandingConfigPayload {
+  if (!isRecord(parsed)) {
+    throw new Error('JSON must be an object.');
+  }
+
+  const requiredKeys = ['copy', 'productMeta', 'installer', 'theme'] as const;
+  const missingKeys = requiredKeys.filter((key) => !isRecord(parsed[key]));
+
+  if (missingKeys.length > 0) {
+    throw new Error(`Missing required top-level object${missingKeys.length > 1 ? 's' : ''}: ${missingKeys.join(', ')}.`);
+  }
+
+  if (parsed.schemaVersion !== undefined && parsed.schemaVersion !== landingConfigSchemaVersion) {
+    throw new Error(`Unsupported schemaVersion. Expected ${landingConfigSchemaVersion}.`);
+  }
+
+  const importedInstaller = parsed.installer as Partial<InstallerMeta>;
+  const installer: InstallerMeta = {
+    ...defaultInstallerMeta,
+    ...importedInstaller,
+    mirrors: Array.isArray(importedInstaller.mirrors)
+      ? importedInstaller.mirrors.map((mirror) => ({ ...mirror }))
+      : defaultInstallerMeta.mirrors,
+    mobileDownloads: Array.isArray(importedInstaller.mobileDownloads)
+      ? importedInstaller.mobileDownloads.map((download) => ({ ...download }))
+      : defaultInstallerMeta.mobileDownloads,
+  };
+  const productMeta = { ...defaultProductMeta, ...(parsed.productMeta as Partial<ProductMeta>) };
+  const theme = { ...defaultTheme, ...(parsed.theme as Partial<LandingTheme>) };
+  const copy = { ...defaultCopy, ...(parsed.copy as Partial<EditableCopy>) };
+  const errors: string[] = [];
+
+  if (!isBrowserSafeUrlOrPath(installer.installerPath, ['/downloads/'])) {
+    errors.push('installer.installerPath must use /downloads/ or an https/http URL.');
+  }
+
+  if (!isSha256OrPlaceholder(installer.checksum)) {
+    errors.push('installer.checksum must be a 64-character SHA-256 value or a clear placeholder.');
+  }
+
+  if (Array.isArray(importedInstaller.mobileDownloads)) {
+    const invalidMobileIds = importedInstaller.mobileDownloads
+      .map((download) => (isRecord(download) ? download.id : undefined))
+      .filter((id) => id !== 'android' && id !== 'ios');
+
+    if (invalidMobileIds.length > 0) {
+      errors.push('installer.mobileDownloads may only contain android and ios entries.');
+    }
+  }
+
+  if (!isBrowserSafeUrlOrPath(productMeta.screenshotPath, ['/screenshots/'])) {
+    errors.push('productMeta.screenshotPath must use /screenshots/ or an https/http URL.');
+  }
+
+  if (productMeta.githubUrl && !isBrowserSafeUrlOrPath(productMeta.githubUrl, [], true)) {
+    errors.push('productMeta.githubUrl must be an https/http URL.');
+  }
+
+  getInstallerMirrors(installer).forEach((mirror) => {
+    if (!isBrowserSafeUrlOrPath(mirror.url, ['/downloads/'], true)) {
+      errors.push(`installer.mirrors.${mirror.id}.url must be empty, /downloads/, or an https/http URL.`);
+    }
+  });
+
+  getMobileDownloads(installer).forEach((download) => {
+    if (!isBrowserSafeUrlOrPath(download.url, ['/downloads/'], true)) {
+      errors.push(`installer.mobileDownloads.${download.id}.url must be empty, /downloads/, or an https/http URL.`);
+    }
+  });
+
+  (Object.keys(defaultTheme) as Array<keyof LandingTheme>).forEach((key) => {
+    const value = theme[key];
+
+    if (typeof value === 'string' && key.toLowerCase().includes('color') && !isHexColor(value)) {
+      errors.push(`theme.${key} must be a hex color.`);
+    }
+  });
+
+  if (!theme.bodyFontFamily.trim() || !theme.headingFontFamily.trim() || !theme.monoFontFamily.trim()) {
+    errors.push('Theme font stacks cannot be empty.');
+  }
+
+  if (!Number.isFinite(theme.baseFontSize) || theme.baseFontSize < 12 || theme.baseFontSize > 24) {
+    errors.push('theme.baseFontSize must be between 12 and 24.');
+  }
+
+  if (errors.length > 0) {
+    throw new Error(errors.slice(0, 3).join(' '));
+  }
+
+  return {
+    schemaVersion: landingConfigSchemaVersion,
+    exportedAt: typeof parsed.exportedAt === 'string' ? parsed.exportedAt : new Date().toISOString(),
+    app: typeof parsed.app === 'string' ? parsed.app : landingConfigAppName,
+    copy,
+    productMeta,
+    installer,
+    theme,
+  };
+}
+
+function parsePastedConfigJson(input: string): unknown {
+  const trimmedInput = input.trim();
+
+  if (!trimmedInput) {
+    throw new Error('Paste the JSON output first.');
+  }
+
+  const fencedJson = trimmedInput.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
+  const candidate = fencedJson || trimmedInput;
+
+  try {
+    return JSON.parse(candidate) as unknown;
+  } catch (error) {
+    const objectStart = candidate.indexOf('{');
+    const objectEnd = candidate.lastIndexOf('}');
+
+    if (objectStart >= 0 && objectEnd > objectStart) {
+      return JSON.parse(candidate.slice(objectStart, objectEnd + 1)) as unknown;
+    }
+
+    throw error;
+  }
+}
+
 function getLandingConfigPayload(
   copy: EditableCopy,
   productMeta: ProductMeta,
   installer: InstallerMeta,
   theme: LandingTheme,
 ) {
-  return { copy, productMeta, installer, theme };
+  return {
+    schemaVersion: landingConfigSchemaVersion,
+    exportedAt: new Date().toISOString(),
+    app: landingConfigAppName,
+    copy,
+    productMeta,
+    installer,
+    theme,
+  } satisfies LandingConfigPayload;
+}
+
+function getReleaseManifest(copy: EditableCopy, productMeta: ProductMeta, installer: InstallerMeta): ReleaseManifest {
+  const activeMirrors = getInstallerMirrors(installer)
+    .filter((mirror) => mirror.enabled && mirror.url.trim())
+    .map((mirror) => ({
+      id: mirror.id,
+      label: mirror.label,
+      url: mirror.url.trim(),
+    }));
+
+  const downloads: ReleaseManifestDownload[] = [
+    {
+      platform: 'windows',
+      label: 'Windows',
+      platformSupport: productMeta.windowsSupport,
+      fileName: installer.fileName,
+      fileSize: installer.fileSize,
+      sizeBytes: installer.sizeBytes || undefined,
+      url: installer.installerPath,
+      sha256: installer.checksum,
+      buttonLabel: 'Download .exe',
+      enabled: true,
+      mirrors: activeMirrors,
+    },
+    ...getMobileDownloads(installer).map((download) => ({
+      platform: download.id,
+      label: download.label,
+      platformSupport: download.platformSupport,
+      fileName: download.fileName,
+      fileSize: download.fileSize,
+      url: download.url,
+      buttonLabel: download.buttonLabel,
+      enabled: download.enabled,
+    })),
+  ];
+
+  return {
+    schemaVersion: 1,
+    exportedAt: new Date().toISOString(),
+    app: landingConfigAppName,
+    product: {
+      name: productMeta.name,
+      version: productMeta.version,
+      releaseDate: productMeta.releaseDate,
+      publisher: productMeta.publisher,
+      supportEmail: productMeta.supportEmail,
+      githubUrl: productMeta.githubUrl,
+    },
+    downloads,
+    changelog: changelogKeys.map((key) => copy[key]).filter(Boolean),
+  };
 }
 
 function buildAiConfigPrompt(
@@ -569,19 +755,69 @@ function buildAiConfigPrompt(
   theme: LandingTheme,
 ) {
   const config = getLandingConfigPayload(copy, productMeta, installer, theme);
+  const releaseFacts = {
+    productMeta: {
+      name: productMeta.name,
+      version: productMeta.version,
+      windowsSupport: productMeta.windowsSupport,
+      systemRequirements: productMeta.systemRequirements,
+      releaseDate: productMeta.releaseDate,
+      publisher: productMeta.publisher,
+      supportEmail: productMeta.supportEmail,
+      screenshotPath: productMeta.screenshotPath,
+      githubUrl: productMeta.githubUrl,
+    },
+    installer: {
+      fileName: installer.fileName,
+      fileSize: installer.fileSize,
+      installerPath: installer.installerPath,
+      checksum: installer.checksum,
+      sizeBytes: installer.sizeBytes,
+      githubOwner: installer.githubOwner,
+      githubRepo: installer.githubRepo,
+      githubAssetName: installer.githubAssetName,
+      mirrors: installer.mirrors,
+      mobileDownloads: installer.mobileDownloads,
+    },
+  };
   const schema = {
+    schemaVersion: landingConfigSchemaVersion,
+    exportedAt: new Date().toISOString(),
+    app: landingConfigAppName,
     copy: defaultCopy,
     productMeta: defaultProductMeta,
     installer: defaultInstallerMeta,
     theme: defaultTheme,
   };
 
-  return `Create production-ready JSON for this Windows, Android, and iOS app download page.
+  return `You are Codex working in the local repository for this Vite + React app download page.
 
-Return only valid JSON. Do not wrap it in Markdown. Do not include comments or explanations.
+Your job is to scan the app, verify the release facts you can verify locally, and return an importable landing-page config JSON object.
+
+Read-only Codex scan required before final JSON:
+- Inspect AGENTS.md for repository instructions.
+- Inspect src/config.ts, src/release.config.json, src/types.ts, and the relevant editor/schema code in src/App.tsx.
+- Inspect public/downloads and public/screenshots for the actual installer and screenshot assets.
+- If public/downloads contains the configured Windows installer, compute its SHA-256 and byte size and use those verified values.
+- If Android or iOS native project files exist, use them only to understand platform availability. Do not imply a public Android or iOS download unless installer.mobileDownloads already has a real URL or you verify a browser-safe release asset path.
+- Do not edit files, install packages, run a build, or create commits. Use read-only file inspection and safe shell commands only.
+
+Final response requirements:
+- Return only valid JSON. Do not wrap it in Markdown. Do not include comments, prose, diffs, or explanations.
+- The JSON must parse with JSON.parse and be directly pasteable into this app's "Paste AI JSON" field.
+- Include every required key from the schema object below, including all nested copy, productMeta, installer, theme, mirror, and mobile download keys.
+
+Primary objective:
+- Improve the landing-page copy and visual theme while preserving the accuracy of factual release data.
+- Treat verified local repository facts as the highest priority source of truth.
+- Treat the current site JSON as the source of truth for any product, installer, checksum, URL, support, and release facts you cannot verify locally.
+- Do not invent facts, URLs, version numbers, checksums, publishers, app-store links, file sizes, release dates, or support contacts.
 
 The JSON must keep this exact top-level shape:
 {
+  "schemaVersion": 1,
+  "exportedAt": "ISO-8601 timestamp",
+  "app": "distribution-website",
   "copy": {},
   "productMeta": {},
   "installer": {},
@@ -590,15 +826,30 @@ The JSON must keep this exact top-level shape:
 
 Rules:
 - Keep every key shown in the schema.
-- Write concise landing-page copy for a real downloadable product across Windows, Android, and iOS.
+- Keep schemaVersion as ${landingConfigSchemaVersion} and app as "${landingConfigAppName}".
+- Write concise landing-page copy that matches the current product and enabled downloads.
+- Keep copy accurate to the configured platforms. If Android or iOS downloads are disabled or missing URLs, do not imply they are available.
 - Preserve browser-safe paths only. Do not use local filesystem paths.
-- Use /downloads/<file-name>.exe for Windows installers and /downloads/<file-name>.apk for Android packages unless a hosted URL is provided.
-- Use an App Store or TestFlight URL for iOS unless it is intentionally unavailable.
+- Preserve existing /downloads/, /screenshots/, https://, and http:// values exactly unless the current value is an obvious placeholder.
+- Use /downloads/<file-name>.exe for Windows installers and /downloads/<file-name>.apk for Android packages only when replacing an obvious placeholder.
+- Use an App Store or TestFlight URL for iOS only when one is supplied in the current JSON. Otherwise keep a clear placeholder and leave the download disabled.
 - Use /screenshots/<file-name> for screenshot paths.
 - Keep colors as hex strings.
+- Keep theme.backgroundType as one of solid, gradient, image, or pattern.
+- Keep theme.density as one of compact, normal, or spacious.
+- Keep theme.overlayOpacity as a number between 0 and 1.
+- Keep theme.baseFontSize as a number between 12 and 24.
 - Keep installer.mirrors as an array with the same mirror ids.
 - Keep installer.mobileDownloads as an array with the android and ios ids.
-- Use realistic release, publisher, support, checksum, changelog, and download metadata when supplied. If unknown, leave a clear placeholder.
+- Preserve these exact factual fields unless they are empty, an obvious placeholder, or contradicted by a verified local file scan: productMeta.name, productMeta.version, productMeta.releaseDate, productMeta.publisher, productMeta.supportEmail, productMeta.githubUrl, productMeta.screenshotPath, installer.fileName, installer.fileSize, installer.installerPath, installer.checksum, installer.sizeBytes, installer.githubOwner, installer.githubRepo, installer.githubAssetName, installer.mirrors[*].url, installer.mobileDownloads[*].url.
+- Preserve a 64-character SHA-256 checksum exactly. Never generate a fake checksum.
+- If you compute a different SHA-256 for the exact configured installer file in public/downloads, use the computed value and keep the browser path as /downloads/<file-name>.
+- Changelog items must describe the same version and distribution state shown in the current JSON.
+- Keep enabled false for any mobile download or mirror that has no real URL.
+- Keep the output compact enough to paste into a textarea, but do not omit required fields.
+
+Known release facts to preserve:
+${JSON.stringify(releaseFacts, null, 2)}
 
 Schema with required keys:
 ${JSON.stringify(schema, null, 2)}
@@ -712,15 +963,40 @@ function EditableText({
   className?: string;
   style?: CSSProperties;
 }) {
+  function commitEdit(element: HTMLElement) {
+    updateCopy(copyKey, element.textContent?.trim() || defaultCopy[copyKey]);
+  }
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    if (!editMode) {
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.currentTarget.textContent = copy[copyKey];
+      event.currentTarget.blur();
+      return;
+    }
+
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      commitEdit(event.currentTarget);
+      event.currentTarget.blur();
+    }
+  }
+
   return (
     <Component
       className={`${className} ${editMode ? 'editable-copy' : ''}`}
       contentEditable={editMode}
+      role={editMode ? 'textbox' : undefined}
+      tabIndex={editMode ? 0 : undefined}
+      aria-label={editMode ? `Edit ${getReadableLabel(copyKey)}` : undefined}
       style={style}
       suppressContentEditableWarning
-      onBlur={(event: FocusEvent<HTMLElement>) =>
-        updateCopy(copyKey, event.currentTarget.textContent?.trim() || defaultCopy[copyKey])
-      }
+      onBlur={(event: FocusEvent<HTMLElement>) => commitEdit(event.currentTarget)}
+      onKeyDown={handleKeyDown}
     >
       {copy[copyKey]}
     </Component>
@@ -733,6 +1009,7 @@ function EditorToolbar({
   setEditMode,
   isDrawerOpen,
   setIsDrawerOpen,
+  customizeButtonRef,
   installer,
   updateInstaller,
   saveState,
@@ -743,6 +1020,7 @@ function EditorToolbar({
   setEditMode: (value: boolean) => void;
   isDrawerOpen: boolean;
   setIsDrawerOpen: (value: boolean) => void;
+  customizeButtonRef: RefObject<HTMLButtonElement | null>;
   installer: InstallerMeta;
   updateInstaller: (installer: InstallerMeta) => void;
   saveState: SaveState;
@@ -781,7 +1059,7 @@ function EditorToolbar({
         <button
           type="button"
           onClick={() => setEditMode(!editMode)}
-          className={`inline-flex min-h-10 items-center gap-2 rounded-md px-4 text-sm font-semibold transition ${
+          className={`inline-flex min-h-10 items-center gap-2 rounded-md px-4 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${
             editMode ? 'bg-emerald-600 text-white' : 'bg-gray-950 text-white hover:bg-gray-800'
           }`}
         >
@@ -789,14 +1067,22 @@ function EditorToolbar({
           {editMode ? 'Inline Edit On' : 'Inline Edit'}
         </button>
         <button
+          ref={customizeButtonRef}
           type="button"
           onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-          className="inline-flex min-h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+          className="inline-flex min-h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+          aria-controls={editorDrawerId}
+          aria-expanded={isDrawerOpen}
         >
           <PanelRightOpen size={16} />
           Customize
         </button>
-        <span className="inline-flex min-h-10 items-center gap-2 rounded-md bg-gray-50 px-3 text-xs font-semibold text-gray-600">
+        <span
+          className="inline-flex min-h-10 items-center gap-2 rounded-md bg-gray-50 px-3 text-xs font-semibold text-gray-600"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           <Save size={15} />
           {saveState === 'saving' ? 'Saving...' : hasChanges ? 'Saved locally' : 'Defaults active'}
         </span>
@@ -804,7 +1090,7 @@ function EditorToolbar({
       </div>
       {editMode ? (
         <label
-          className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-emerald-300 bg-emerald-50/70 p-4 text-center transition hover:bg-emerald-50"
+          className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-emerald-300 bg-emerald-50/70 p-4 text-center transition hover:bg-emerald-50 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-emerald-600"
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => {
             event.preventDefault();
@@ -820,7 +1106,7 @@ function EditorToolbar({
             <UploadCloud className="text-emerald-700" size={24} />
           )}
           <span className="mt-2 text-sm font-semibold text-gray-950">Drop installer or click to upload</span>
-          <span className="mt-1 text-xs text-gray-600">
+          <span className="mt-1 text-xs text-gray-600" role="status" aria-live="polite" aria-atomic="true">
             {installer.installerPath} - {message}
           </span>
           <input
@@ -845,6 +1131,7 @@ function EditorDrawer({
   canEdit,
   isOpen,
   onClose,
+  returnFocusRef,
   copy,
   updateCopy,
   replaceCopy,
@@ -865,6 +1152,7 @@ function EditorDrawer({
   canEdit: boolean;
   isOpen: boolean;
   onClose: () => void;
+  returnFocusRef: RefObject<HTMLButtonElement | null>;
   copy: EditableCopy;
   updateCopy: (key: CopyKey, value: string) => void;
   replaceCopy: (copy: EditableCopy) => void;
@@ -883,25 +1171,101 @@ function EditorDrawer({
   resetTheme: () => void;
 }) {
   const importInputRef = useRef<HTMLInputElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const drawerTitleId = useId();
   const [uploadMessage, setUploadMessage] = useState('Upload background or screenshot images to /public/screenshots.');
   const [linkStatuses, setLinkStatuses] = useState<Record<string, LinkStatus>>({});
+  const [linkValidationMessage, setLinkValidationMessage] = useState('Download links have not been validated.');
   const [isValidatingLinks, setIsValidatingLinks] = useState(false);
   const [aiJson, setAiJson] = useState('');
-  const [aiMessage, setAiMessage] = useState('Copy the prompt, paste it into Claude Code, then paste the returned JSON here.');
+  const [aiMessage, setAiMessage] = useState('Copy the prompt, paste it into Codex, then paste the returned JSON here.');
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    window.setTimeout(() => {
+      const drawer = drawerRef.current;
+      const firstFocusable = drawer ? getFocusableElements(drawer)[0] : null;
+      firstFocusable?.focus();
+    }, 0);
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab') {
+        return;
+      }
+
+      const drawer = drawerRef.current;
+      if (!drawer) {
+        return;
+      }
+
+      const focusableElements = getFocusableElements(drawer);
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (!firstElement || !lastElement) {
+        event.preventDefault();
+        drawer.focus();
+        return;
+      }
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+        return;
+      }
+
+      if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+      returnFocusRef.current?.focus();
+    };
+  }, [isOpen, onClose, returnFocusRef]);
 
   if (!canEdit) {
     return null;
   }
 
-  function exportJson() {
-    const payload = JSON.stringify(getLandingConfigPayload(copy, productMeta, installer, theme), null, 2);
-    const blob = new Blob([payload], { type: 'application/json' });
+  function downloadJson(payload: unknown, fileName: string) {
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `${productMeta.name.toLowerCase()}-landing-config.json`;
+    anchor.download = fileName;
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  function exportJson() {
+    const productSlug = productMeta.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'app';
+
+    downloadJson(getLandingConfigPayload(copy, productMeta, installer, theme), `${productSlug}-landing-config.json`);
+  }
+
+  function exportReleaseManifest() {
+    const productSlug = productMeta.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'app';
+
+    downloadJson(getReleaseManifest(copy, productMeta, installer), `${productSlug}-release-manifest.json`);
   }
 
   async function copyAiPrompt() {
@@ -909,57 +1273,41 @@ function EditorDrawer({
 
     try {
       await navigator.clipboard.writeText(prompt);
-      setAiMessage('AI prompt copied. Paste it into Claude Code.');
+      setAiMessage('Codex prompt copied. Paste it into Codex and ask it to return only JSON.');
     } catch {
       setAiJson(prompt);
       setAiMessage('Clipboard was blocked. The prompt is in the box below.');
     }
   }
 
-  function applyConfigJson(parsed: {
-    copy?: Partial<EditableCopy>;
-    productMeta?: Partial<ProductMeta>;
-    installer?: Partial<InstallerMeta>;
-    theme?: Partial<LandingTheme>;
-  }) {
-    if (parsed.copy) {
-      replaceCopy({ ...defaultCopy, ...parsed.copy });
-    }
-    if (parsed.productMeta) {
-      replaceProductMeta({ ...defaultProductMeta, ...parsed.productMeta });
-    }
-    if (parsed.installer) {
-      replaceInstaller({ ...defaultInstallerMeta, ...parsed.installer });
-    }
-    if (parsed.theme) {
-      replaceTheme({ ...defaultTheme, ...parsed.theme });
-    }
+  function applyConfigJson(parsed: unknown) {
+    const config = normalizeImportedConfig(parsed);
+
+    replaceCopy(config.copy);
+    replaceProductMeta(config.productMeta);
+    replaceInstaller(config.installer);
+    replaceTheme(config.theme);
   }
 
   async function importJson(file: File) {
-    const parsed = JSON.parse(await file.text()) as {
-      copy?: Partial<EditableCopy>;
-      productMeta?: Partial<ProductMeta>;
-      installer?: Partial<InstallerMeta>;
-      theme?: Partial<LandingTheme>;
-    };
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
 
-    applyConfigJson(parsed);
+      applyConfigJson(parsed);
+      setAiMessage('JSON imported and validated.');
+    } catch (error) {
+      setAiMessage(error instanceof Error ? error.message : 'Could not import that JSON.');
+    }
   }
 
   function applyAiJson() {
     try {
-      const parsed = JSON.parse(aiJson) as {
-        copy?: Partial<EditableCopy>;
-        productMeta?: Partial<ProductMeta>;
-        installer?: Partial<InstallerMeta>;
-        theme?: Partial<LandingTheme>;
-      };
+      const parsed = parsePastedConfigJson(aiJson);
 
       applyConfigJson(parsed);
-      setAiMessage('AI JSON applied locally.');
-    } catch {
-      setAiMessage('That is not valid JSON yet. Paste Claude Code output without Markdown fences.');
+      setAiMessage('AI JSON validated and applied locally.');
+    } catch (error) {
+      setAiMessage(error instanceof Error ? error.message : 'That is not valid JSON yet. Paste output without Markdown fences.');
     }
   }
 
@@ -1039,6 +1387,7 @@ function EditorDrawer({
     ];
 
     setIsValidatingLinks(true);
+    setLinkValidationMessage('Checking download links.');
     setLinkStatuses((current) => ({
       ...current,
       ...Object.fromEntries(links.map((link) => [link.id, 'checking' as LinkStatus])),
@@ -1049,6 +1398,13 @@ function EditorDrawer({
     );
 
     setLinkStatuses((current) => ({ ...current, ...Object.fromEntries(entries) }));
+    const summary = entries.reduce(
+      (counts, [, status]) => ({ ...counts, [status]: counts[status] + 1 }),
+      { unchecked: 0, checking: 0, reachable: 0, blocked: 0, missing: 0 } satisfies Record<LinkStatus, number>,
+    );
+    setLinkValidationMessage(
+      `Link validation complete. ${summary.reachable} reachable, ${summary.blocked} blocked or unknown, ${summary.missing} missing.`,
+    );
     setIsValidatingLinks(false);
   }
 
@@ -1071,28 +1427,39 @@ function EditorDrawer({
 
   const googleDriveMirror = getMirror('google-drive');
   const oneDriveMirror = getMirror('onedrive');
+  const readinessItems = getReleaseReadinessItems({ copy, productMeta, installer, linkStatuses });
+
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <>
       <div
-        className={`fixed inset-0 z-[55] bg-gray-950/30 transition ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className="fixed inset-0 z-[55] bg-gray-950/30 transition"
         onClick={onClose}
+        aria-hidden="true"
       />
       <aside
-        className={`fixed right-0 top-0 z-[60] h-full w-full max-w-xl overflow-y-auto border-l border-gray-200 bg-white shadow-2xl transition-transform duration-300 ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
-        aria-hidden={!isOpen}
+        ref={drawerRef}
+        id={editorDrawerId}
+        className="fixed right-0 top-0 z-[60] h-full w-full max-w-xl overflow-y-auto border-l border-gray-200 bg-white shadow-2xl transition-transform duration-300"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={drawerTitleId}
+        tabIndex={-1}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white/95 px-5 py-4 backdrop-blur">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wider text-emerald-700">Developer editor</p>
-            <h2 className="text-xl font-semibold text-gray-950">Copy, release, and theme</h2>
+            <h2 id={drawerTitleId} className="text-xl font-semibold text-gray-950">
+              Copy, release, and theme
+            </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-grid size-10 place-items-center rounded-md border border-gray-200 text-gray-700 transition hover:bg-gray-50"
+            className="inline-grid size-10 place-items-center rounded-md border border-gray-200 text-gray-700 transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
             aria-label="Close editor"
           >
             <X size={18} />
@@ -1100,15 +1467,22 @@ function EditorDrawer({
         </div>
 
         <div className="space-y-5 p-5 pb-32">
+          <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {linkValidationMessage}
+          </p>
           <EditorSection title="Actions" icon={Download}>
             <div className="grid gap-2 sm:grid-cols-2">
               <button type="button" className="editor-button" onClick={exportJson}>
                 <Download size={16} />
-                Export JSON
+                Export site config
+              </button>
+              <button type="button" className="editor-button" onClick={exportReleaseManifest}>
+                <FileText size={16} />
+                Export release manifest
               </button>
               <button type="button" className="editor-button" onClick={() => void copyAiPrompt()}>
                 <TerminalSquare size={16} />
-                Copy AI prompt
+                  Copy Codex prompt
               </button>
               <button type="button" className="editor-button" onClick={() => importInputRef.current?.click()}>
                 <Upload size={16} />
@@ -1134,7 +1508,7 @@ function EditorDrawer({
                 <textarea
                   className="editor-input min-h-36 resize-y font-mono text-xs leading-5"
                   value={aiJson}
-                  placeholder='{"copy": {...}, "productMeta": {...}, "installer": {...}, "theme": {...}}'
+                  placeholder='{"schemaVersion": 1, "app": "distribution-website", "copy": {...}, "productMeta": {...}, "installer": {...}, "theme": {...}}'
                   onChange={(event) => setAiJson(event.currentTarget.value)}
                 />
               </label>
@@ -1143,7 +1517,9 @@ function EditorDrawer({
                   <Check size={16} />
                   Apply pasted JSON
                 </button>
-                <p className="text-xs font-medium leading-5 text-gray-500">{aiMessage}</p>
+                <p className="text-xs font-medium leading-5 text-gray-500" role="status" aria-live="polite" aria-atomic="true">
+                  {aiMessage}
+                </p>
               </div>
             </div>
             <input
@@ -1159,6 +1535,10 @@ function EditorDrawer({
                 event.currentTarget.value = '';
               }}
             />
+          </EditorSection>
+
+          <EditorSection title="Release assistant" icon={ShieldCheck}>
+            <ReleaseReadinessChecklist items={readinessItems} />
           </EditorSection>
 
           <EditorSection title="Distribution links" icon={Cloud}>
@@ -1287,7 +1667,8 @@ function EditorDrawer({
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
               <p className="font-semibold">Android and iOS setup</p>
               <p className="mt-1 leading-6">
-                Use Android for APK, AAB, Play Store, or hosted package links. Use iOS for App Store or TestFlight links.
+                Mobile downloads stay hidden on the public page until you enable a platform and add its link. Use Android
+                for APK, AAB, Play Store, or hosted package links. Use iOS for App Store or TestFlight links.
               </p>
             </div>
             <div className="space-y-4">
@@ -1584,6 +1965,63 @@ function EditorDrawer({
                 <option value="pattern">Subtle pattern</option>
               </select>
             </label>
+            <div className="grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <label className="editor-label">
+                Font pairing
+                <select
+                  className="editor-input"
+                  value={getFontPresetKey(theme)}
+                  onChange={(event) => {
+                    const preset = fontPresets.find((option) => option.label === event.currentTarget.value);
+
+                    if (preset) {
+                      updateTheme(preset.value);
+                    }
+                  }}
+                >
+                  {fontPresets.map((preset) => (
+                    <option value={preset.label} key={preset.label}>
+                      {preset.label}
+                    </option>
+                  ))}
+                  <option value="Custom" disabled>
+                    Custom
+                  </option>
+                </select>
+              </label>
+              <TextField
+                label="Body font stack"
+                value={theme.bodyFontFamily}
+                onChange={(value) => updateTheme({ bodyFontFamily: value })}
+              />
+              <TextField
+                label="Heading font stack"
+                value={theme.headingFontFamily}
+                onChange={(value) => updateTheme({ headingFontFamily: value })}
+              />
+              <TextField
+                label="Code font stack"
+                value={theme.monoFontFamily}
+                onChange={(value) => updateTheme({ monoFontFamily: value })}
+              />
+              <label className="editor-label">
+                Base font size
+                <span className="flex items-center gap-3">
+                  <input
+                    className="editor-input"
+                    type="range"
+                    min="14"
+                    max="20"
+                    step="1"
+                    value={theme.baseFontSize}
+                    onChange={(event) => updateTheme({ baseFontSize: Number(event.currentTarget.value) })}
+                  />
+                  <output className="min-w-12 text-right text-sm font-semibold normal-case tracking-normal text-gray-700">
+                    {theme.baseFontSize}px
+                  </output>
+                </span>
+              </label>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <ColorField label="Accent color" value={theme.accentColor} onChange={(value) => updateTheme({ accentColor: value })} />
               <ColorField
@@ -1675,6 +2113,7 @@ function EditorDrawer({
                 </select>
               </label>
             </div>
+            <ThemeContrastChecklist theme={theme} />
             <TextField
               label="Background image path"
               value={theme.backgroundImage}
@@ -1696,7 +2135,9 @@ function EditorDrawer({
               <ImageUploadButton label="Upload background" onUpload={(file) => uploadImage(file, 'background')} />
               <ImageUploadButton label="Upload screenshot" onUpload={(file) => uploadImage(file, 'screenshot')} />
             </div>
-            <p className="text-xs leading-5 text-gray-500">{uploadMessage}</p>
+            <p className="text-xs leading-5 text-gray-500" role="status" aria-live="polite" aria-atomic="true">
+              {uploadMessage}
+            </p>
           </EditorSection>
         </div>
       </aside>
@@ -1705,12 +2146,14 @@ function EditorDrawer({
 }
 
 function EditorSection({ title, icon: Icon, children }: { title: string; icon: ElementType; children: ReactNode }) {
+  const headingId = useId();
+
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-950">
+    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm" aria-labelledby={headingId}>
+      <h3 id={headingId} className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-950">
         <Icon size={17} className="text-emerald-700" />
         {title}
-      </div>
+      </h3>
       <div className="space-y-3">{children}</div>
     </section>
   );
@@ -1787,10 +2230,55 @@ function LinkStatusBadge({ label, status }: { label: string; status: LinkStatus 
   };
 
   return (
-    <span className={`inline-flex min-h-7 items-center gap-2 rounded-full px-3 text-xs font-semibold ${styles[status]}`}>
+    <span
+      className={`inline-flex min-h-7 items-center gap-2 rounded-full px-3 text-xs font-semibold ${styles[status]}`}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
       {status === 'checking' ? <Loader2 size={13} className="animate-spin" /> : null}
       {label}: {text[status]}
     </span>
+  );
+}
+
+function ReleaseReadinessChecklist({ items }: { items: ReadinessItem[] }) {
+  const counts = items.reduce(
+    (summary, item) => ({ ...summary, [item.state]: summary[item.state] + 1 }),
+    { pass: 0, warn: 0, fail: 0 },
+  );
+
+  const stateStyles: Record<ReadinessItem['state'], string> = {
+    pass: 'border-emerald-200 bg-emerald-50 text-emerald-950',
+    warn: 'border-amber-200 bg-amber-50 text-amber-950',
+    fail: 'border-rose-200 bg-rose-50 text-rose-950',
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-2 text-xs font-semibold sm:grid-cols-3">
+        <span className="rounded-md bg-emerald-50 px-3 py-2 text-emerald-800">{counts.pass} ready</span>
+        <span className="rounded-md bg-amber-50 px-3 py-2 text-amber-800">{counts.warn} review</span>
+        <span className="rounded-md bg-rose-50 px-3 py-2 text-rose-800">{counts.fail} blocked</span>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div className={`rounded-lg border p-3 ${stateStyles[item.state]}`} key={item.id}>
+            <div className="flex items-start gap-2">
+              {item.state === 'pass' ? <Check size={16} className="mt-0.5 shrink-0" /> : null}
+              {item.state !== 'pass' ? <AlertTriangle size={16} className="mt-0.5 shrink-0" /> : null}
+              <div>
+                <p className="text-sm font-semibold">{item.label}</p>
+                <p className="mt-1 text-xs leading-5">{item.detail}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs leading-5 text-gray-500">
+        Run link validation after editing hosted URLs so mirror status can feed into this checklist.
+      </p>
+    </div>
   );
 }
 
@@ -1831,6 +2319,51 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
         <input className="editor-input" type="text" value={value} onChange={(event) => onChange(event.currentTarget.value)} />
       </span>
     </label>
+  );
+}
+
+function ThemeContrastChecklist({ theme }: { theme: LandingTheme }) {
+  const checks = [
+    { label: 'Body text on page', foreground: theme.textColor, background: theme.pageBackground },
+    { label: 'Muted text on page', foreground: theme.mutedTextColor, background: theme.pageBackground },
+    { label: 'Body text on section', foreground: theme.textColor, background: theme.sectionBackground },
+    { label: 'CTA text on accent', foreground: theme.buttonTextColor, background: theme.accentColor },
+    { label: 'Download text on panel', foreground: theme.downloadTextColor, background: theme.downloadBackground },
+  ].map((check) => {
+    const ratio = getContrastRatio(check.foreground, check.background);
+
+    return {
+      ...check,
+      ratio,
+      passes: ratio !== null && ratio >= 4.5,
+    };
+  });
+  const passingCount = checks.filter((check) => check.passes).length;
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+        <BadgeCheck size={15} />
+        Contrast checks
+      </div>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {passingCount} of {checks.length} theme contrast checks pass.
+      </p>
+      <div className="mt-3 grid gap-2">
+        {checks.map((check) => (
+          <div className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-sm" key={check.label}>
+            <span className="font-medium text-gray-800">{check.label}</span>
+            <span
+              className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${
+                check.passes ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+              }`}
+            >
+              {check.ratio === null ? 'Invalid color' : `${check.ratio.toFixed(2)}:1 ${check.passes ? 'Pass' : 'Review'}`}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -2336,6 +2869,19 @@ function DownloadPanel({
 }) {
   const activeMirrors = getInstallerMirrors(installer).filter((mirror) => mirror.enabled && mirror.url.trim());
   const platformDownloads = getPlatformDownloads(installer, productMeta).filter((download) => download.enabled);
+  const releaseManifest = useMemo(() => getReleaseManifest(copy, productMeta, installer), [copy, productMeta, installer]);
+  const verifyCommand = getVerifyCommand(installer.fileName);
+  const [copiedValue, setCopiedValue] = useState<'checksum' | 'command' | null>(null);
+
+  async function copyTrustValue(value: string, key: 'checksum' | 'command') {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedValue(key);
+      window.setTimeout(() => setCopiedValue(null), 1500);
+    } catch {
+      setCopiedValue(null);
+    }
+  }
 
   return (
     <section
@@ -2431,13 +2977,47 @@ function DownloadPanel({
             <MetaRow label="Publisher" value={productMeta.publisher} theme={theme} />
             <MetaRow label="System requirements" value={productMeta.systemRequirements} theme={theme} />
             <div className="border-t pt-3" style={{ borderColor: theme.borderColor }}>
-              <dt style={{ color: theme.mutedTextColor }}>Windows SHA-256</dt>
-              <dd className="mt-1 break-all font-mono text-xs font-medium text-gray-200">{installer.checksum}</dd>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <dt style={{ color: theme.mutedTextColor }}>Windows SHA-256</dt>
+                <button
+                  type="button"
+                  className="inline-flex min-h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold transition hover:opacity-80"
+                  style={getSurfaceStyle(theme)}
+                  onClick={() => void copyTrustValue(installer.checksum, 'checksum')}
+                >
+                  <Copy size={13} />
+                  {copiedValue === 'checksum' ? 'Copied' : 'Copy hash'}
+                </button>
+              </div>
+              <dd className="mt-2 break-all font-mono text-xs font-medium text-gray-200">{installer.checksum}</dd>
             </div>
             <div className="border-t pt-3" style={{ borderColor: theme.borderColor }}>
-              <dt style={{ color: theme.mutedTextColor }}>Verify on Windows</dt>
-              <dd className="mt-1 break-all font-mono text-xs font-medium text-gray-200">
-                Get-FileHash .\{installer.fileName} -Algorithm SHA256
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <dt style={{ color: theme.mutedTextColor }}>Verify on Windows</dt>
+                <button
+                  type="button"
+                  className="inline-flex min-h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold transition hover:opacity-80"
+                  style={getSurfaceStyle(theme)}
+                  onClick={() => void copyTrustValue(verifyCommand, 'command')}
+                >
+                  <Copy size={13} />
+                  {copiedValue === 'command' ? 'Copied' : 'Copy command'}
+                </button>
+              </div>
+              <dd className="mt-2 break-all font-mono text-xs font-medium text-gray-200">{verifyCommand}</dd>
+            </div>
+            <div className="border-t pt-3" style={{ borderColor: theme.borderColor }}>
+              <dt style={{ color: theme.mutedTextColor }}>Release manifest</dt>
+              <dd className="mt-2">
+                <a
+                  className="inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition hover:opacity-80"
+                  style={getSurfaceStyle(theme)}
+                  href={getJsonDownloadHref(releaseManifest)}
+                  download={`${productMeta.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'app'}-release-manifest.json`}
+                >
+                  <FileText size={14} />
+                  Download manifest
+                </a>
               </dd>
             </div>
           </dl>
@@ -2541,7 +3121,7 @@ function TrustSections({
               <li className="flex gap-3">
                 <TerminalSquare className="mt-0.5 shrink-0" style={{ color: theme.accentColor }} size={18} />
                 <span className="break-all">
-                  Verify with: <code>Get-FileHash .\{installer.fileName} -Algorithm SHA256</code>
+                  Verify with: <code>{getVerifyCommand(installer.fileName)}</code>
                 </span>
               </li>
               <li className="flex gap-3">
@@ -2594,6 +3174,8 @@ export function App() {
   const installerConfig = useInstallerMeta(canEdit);
   const themeConfig = useLocalConfig<LandingTheme>(canEdit, themeStorageKey, defaultTheme);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const customizeButtonRef = useRef<HTMLButtonElement>(null);
+  const closeEditorDrawer = useCallback(() => setIsDrawerOpen(false), []);
 
   const copy = copyConfig.value;
   const productMeta = productConfig.value;
@@ -2611,43 +3193,46 @@ export function App() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: theme.pageBackground, color: theme.textColor }}>
-      <LocalPreflightWarning canEdit={canEdit} installer={installer} />
-      <Header installer={installer} productMeta={productMeta} theme={theme} />
-      <main>
-        <Hero
-          copy={copy}
-          editMode={editMode}
-          updateCopy={updateCopy}
-          installer={installer}
-          productMeta={productMeta}
-          theme={theme}
-        />
-        <Preview copy={copy} editMode={editMode} updateCopy={updateCopy} productMeta={productMeta} theme={theme} />
-        <Features copy={copy} editMode={editMode} updateCopy={updateCopy} theme={theme} />
-        <DownloadPanel
-          copy={copy}
-          editMode={editMode}
-          updateCopy={updateCopy}
-          installer={installer}
-          productMeta={productMeta}
-          theme={theme}
-        />
-        <TrustSections
-          installer={installer}
-          productMeta={productMeta}
-          copy={copy}
-          editMode={editMode}
-          updateCopy={updateCopy}
-          theme={theme}
-        />
-      </main>
-      <Footer productMeta={productMeta} theme={theme} />
+      <div className="distribution-page" style={getTypographyStyle(theme)}>
+        <LocalPreflightWarning canEdit={canEdit} installer={installer} />
+        <Header installer={installer} productMeta={productMeta} theme={theme} />
+        <main>
+          <Hero
+            copy={copy}
+            editMode={editMode}
+            updateCopy={updateCopy}
+            installer={installer}
+            productMeta={productMeta}
+            theme={theme}
+          />
+          <Preview copy={copy} editMode={editMode} updateCopy={updateCopy} productMeta={productMeta} theme={theme} />
+          <Features copy={copy} editMode={editMode} updateCopy={updateCopy} theme={theme} />
+          <DownloadPanel
+            copy={copy}
+            editMode={editMode}
+            updateCopy={updateCopy}
+            installer={installer}
+            productMeta={productMeta}
+            theme={theme}
+          />
+          <TrustSections
+            installer={installer}
+            productMeta={productMeta}
+            copy={copy}
+            editMode={editMode}
+            updateCopy={updateCopy}
+            theme={theme}
+          />
+        </main>
+        <Footer productMeta={productMeta} theme={theme} />
+      </div>
       <EditorToolbar
         canEdit={canEdit}
         editMode={editMode}
         setEditMode={setEditMode}
         isDrawerOpen={isDrawerOpen}
         setIsDrawerOpen={setIsDrawerOpen}
+        customizeButtonRef={customizeButtonRef}
         installer={installer}
         updateInstaller={installerConfig.replaceValue}
         saveState={saveState}
@@ -2656,7 +3241,8 @@ export function App() {
       <EditorDrawer
         canEdit={canEdit}
         isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
+        onClose={closeEditorDrawer}
+        returnFocusRef={customizeButtonRef}
         copy={copy}
         updateCopy={updateCopy}
         replaceCopy={copyConfig.replaceValue}

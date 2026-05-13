@@ -28,6 +28,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 vite-dev.log
+playwright-report/
+test-results/
 
 # Environment files
 .env

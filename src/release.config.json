@@ -1,0 +1,17 @@
+{
+  "product": {
+    "name": "HertPicture",
+    "version": "v0.1.0",
+    "fileSize": "2.3 MB",
+    "fileName": "HertPicture_0.1.0_x64-setup.exe",
+    "windowsSupport": "Windows 10 and 11",
+    "systemRequirements": "Windows 10 or 11, 64-bit processor, 50 MB free disk space, administrator approval may be required.",
+    "installerPath": "/downloads/HertPicture_0.1.0_x64-setup.exe",
+    "checksum": "4b9e2791aacd9e0112b5dc50f44a8a6ffb9a914f8a912a72d42064e4894b5d5f",
+    "releaseDate": "April 28, 2026",
+    "publisher": "Brilord",
+    "supportEmail": "support@hertpicture.app",
+    "screenshotPath": "/screenshots/hertpicture-preview.svg",
+    "githubUrl": "https://github.com/Brilord/distribution-website"
+  }
+}
